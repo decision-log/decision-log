@@ -16,12 +16,32 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-issue-state-model.md
-│   ├── 0002-ai-cannot-decide-issues.md
-│   └── 0003-no-external-task-tool.md
 └── docs/
+    ├── adr/
+    │   ├── 0001-issue-state-model.md
+    │   ├── 0002-ai-cannot-decide-issues.md
+    │   ├── 0003-no-external-task-tool.md
+    │   ├── 0004-scope-by-substitute.md
+    │   └── 0005-simulate-rounds-not-calls.md
+    ├── seams.md
+    ├── stt-requirements.md
+    ├── mvp-scope.md
+    └── stack.md
 ```
+
+## This repo uses three layers
+
+Decisions are filed by how expensive they are to reverse. When your work touches an area, read the layer it belongs to — not just the ADRs.
+
+| Layer | What | Where |
+| --- | --- | --- |
+| **A. Domain** | issue model, states, permissions, vocabulary | `CONTEXT.md` + `docs/adr/` |
+| **B. External contract** | STT requirements, seam interfaces | `docs/seams.md`, `docs/stt-requirements.md` |
+| **C. MVP execution** | pipeline, prompts, screens, stack, retention | `docs/mvp-scope.md`, `docs/stack.md` |
+
+The canonical definition of the layers is the *세 개의 층* section of `docs/mvp-scope.md`. A-layer changes are schema-wide and settled up front; C-layer changes are expected to be cheap and to move.
+
+The current build target is **v0.5**, defined in ADR 0004 and the *지금 만드는 것* section of `docs/mvp-scope.md`. Anything outside it is deliberately deferred — check the *넓히는 신호* table in ADR 0004 before proposing it.
 
 ## Use the glossary's vocabulary
 
