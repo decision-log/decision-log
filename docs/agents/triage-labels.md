@@ -16,4 +16,4 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 
 ## Existing labels on this repo
 
-`wontfix` already exists on `uwonu606/decision-log` (it ships with every new GitHub repo) — reuse it, don't recreate it. The other four do not exist yet; create them on first use with `gh label create <name>`.
+All five labels already exist on `decision-log/decision-log` — reuse them, don't recreate them.

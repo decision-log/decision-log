@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-이슈는 GitHub Issues (`uwonu606/decision-log`) 에서 `gh` CLI 로 다룬다. See `docs/agents/issue-tracker.md`.
+이슈는 GitHub Issues (`decision-log/decision-log`) 에서 `gh` CLI 로 다룬다. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
