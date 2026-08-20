@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: decisionlog
+      POSTGRES_USER: dl
+      POSTGRES_PASSWORD: dl
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dl -d decisionlog"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # 기본으로는 뜨지 않는다 — bootRun 은 postgres 만 필요하다.
+  #   ./gradlew :app:bootJar && docker compose --profile full up
+  app:
+    profiles: ["full"]
+    build: .
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/decisionlog
+      SPRING_DATASOURCE_USERNAME: dl
+      SPRING_DATASOURCE_PASSWORD: dl
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+    ports: ["8080:8080"]

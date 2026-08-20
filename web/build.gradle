@@ -1,0 +1,31 @@
+plugins { id 'base'; id 'com.github.node-gradle.node' }
+
+node {
+    version = '24.19.0'
+    download = true            // 기계의 Node(22.17) 와 무관하게 빌드가 밀폐된다
+    workDir = layout.buildDirectory.dir('nodejs')
+    npmWorkDir = layout.buildDirectory.dir('npm')
+}
+
+def 소스 = fileTree('src') + files('index.html', 'vite.config.ts', 'tsconfig.json', 'package.json')
+
+tasks.register('viteBuild', NpmTask) {
+    dependsOn tasks.npmInstall
+    args = ['run', 'build']
+    inputs.files(소스).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('package.json')
+    outputs.dir(layout.projectDirectory.dir('dist'))
+}
+
+tasks.register('viteTest', NpmTask) {
+    dependsOn tasks.npmInstall
+    args = ['run', 'test']
+    inputs.files(소스).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(layout.buildDirectory.dir('vitest-marker'))
+}
+
+tasks.named('assemble') { dependsOn 'viteBuild' }
+tasks.named('check')    { dependsOn 'viteTest' }
+
+configurations { webDist }
+artifacts { webDist(layout.projectDirectory.dir('dist')) { builtBy 'viteBuild' } }

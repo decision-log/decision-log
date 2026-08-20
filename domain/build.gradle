@@ -1,0 +1,4 @@
+plugins { id 'java-library' }
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+repositories { mavenCentral() }
+// 의존 없음. 순수 자바.

@@ -1,0 +1,16 @@
+# Gradle
+.gradle/
+build/
+
+# Node
+node_modules/
+web/dist/
+*.tsbuildinfo
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
