@@ -1,0 +1,76 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+repositories { mavenCentral() }
+
+configurations { codegenTool; webDist }
+
+dependencies {
+    implementation project(':domain')
+    implementation project(':adapters-real')
+    implementation project(':adapters-fake')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-jooq'
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.jooq:jooq'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly  'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.postgresql:postgresql'
+    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+
+    webDist project(path: ':web', configuration: 'webDist')
+
+    codegenTool 'org.jooq:jooq-codegen:3.21.5'
+    codegenTool 'org.flywaydb:flyway-core'
+    codegenTool 'org.flywaydb:flyway-database-postgresql'
+    codegenTool 'org.testcontainers:testcontainers-postgresql'
+    codegenTool 'org.postgresql:postgresql'
+    codegenTool 'org.slf4j:slf4j-simple'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core:3.27.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+sourceSets {
+    codegen {
+        java { srcDirs = ['src/codegen/java'] }
+        compileClasspath = configurations.codegenTool
+    }
+}
+
+def 마이그레이션 = file('src/main/resources/db/migration')
+def 생성위치 = layout.buildDirectory.dir('generated-src/jooq')
+
+tasks.register('jooqCodegen', JavaExec) {
+    group = 'build'
+    description = '마이그레이션을 컨테이너에 적용하고 그 스키마에서 타입 안전 코드를 생성한다'
+    inputs.dir(마이그레이션).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(생성위치)
+    classpath = sourceSets.codegen.output + configurations.codegenTool
+    mainClass = 'Codegen'
+    argumentProviders.add({ [생성위치.get().asFile.absolutePath, 마이그레이션.absolutePath] } as CommandLineArgumentProvider)
+    systemProperty 'org.slf4j.simpleLogger.defaultLogLevel', 'warn'
+}
+sourceSets.main.java.srcDir(tasks.named('jooqCodegen'))
+
+// 화면이 애플리케이션의 정적 자원으로 서빙된다 (AC #3)
+tasks.named('processResources') {
+    from(configurations.webDist) { into 'static' }
+}
+
+// 저장소 최상단에서 compose.yaml 을 찾도록
+tasks.named('bootRun') { workingDir = rootProject.projectDir }
+
+// Dockerfile 이 집어가는 이름을 고정한다
+tasks.named('bootJar') { archiveFileName = 'app.jar' }
+
+tasks.named('test') { useJUnitPlatform(); testLogging { showStandardStreams = true } }
