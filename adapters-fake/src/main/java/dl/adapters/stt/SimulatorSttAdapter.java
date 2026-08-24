@@ -11,7 +11,11 @@ public final class SimulatorSttAdapter implements SttPort {
 
     public record Rule(String 정답, Mode mode, List<String> 오염형) {}
 
-    private static final int PROMPT_CHAR_BUDGET = 600;   // 진짜 어댑터와 같은 한도
+    /**
+     * 추측치다. 진짜 어댑터로 재본 적이 없다 — 이 값이 얼마인지는
+     * stt-requirements.md 의 공급자 평가 절차가 답한다. 그때까지 이 상수에 기대 판단하지 않는다.
+     */
+    private static final int PROMPT_CHAR_BUDGET = 600;
 
     private final List<String> script;
     private final List<Rule> rules;
