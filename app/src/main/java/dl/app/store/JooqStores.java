@@ -8,6 +8,9 @@ import org.jooq.DSLContext;
 import java.util.*;
 
 import static dl.app.jooq.Tables.*;
+import static org.jooq.impl.DSL.coalesce;
+import static org.jooq.impl.DSL.inline;
+import static org.jooq.impl.DSL.max;
 
 /**
  * 저장소 포트의 jOOQ 구현.
@@ -27,15 +30,32 @@ public final class JooqStores {
             return new 회의ID(id.toString());
         }
 
+        /**
+         * 회의록 한 벌을 덧붙인다 — 회의 안에서 다음 seq 로 들어간다.
+         *
+         * <p>seq 를 읽고 쓰는 사이가 열려 있지만 회의당 잡이 하나고 그 잡을 집는 일꾼도
+         * 하나라(JooqJobs.시작표시) 같은 회의에 두 벌이 동시에 들어오는 경로가 없다.
+         * 뚫리면 {@code unique (meeting_id, seq)} 가 막는다.
+         */
         @Override public void 회의록저장(회의ID 회의, List<Utterance> 회의록) {
             if (회의록.isEmpty()) return;
             var m = UUID.fromString(회의.value());
+
+            var 회의록ID = UUID.randomUUID();
+            int 다음 = db.select(coalesce(max(TRANSCRIPT.SEQ), inline(-1)))
+                        .from(TRANSCRIPT).where(TRANSCRIPT.MEETING_ID.eq(m))
+                        .fetchSingle().value1() + 1;
+            db.insertInto(TRANSCRIPT)
+              .columns(TRANSCRIPT.ID, TRANSCRIPT.MEETING_ID, TRANSCRIPT.SEQ)
+              .values(회의록ID, m, 다음)
+              .execute();
+
             var step = db.insertInto(UTTERANCE)
-                    .columns(UTTERANCE.MEETING_ID, UTTERANCE.SEQ, UTTERANCE.SPEAKER,
+                    .columns(UTTERANCE.TRANSCRIPT_ID, UTTERANCE.SEQ, UTTERANCE.SPEAKER,
                              UTTERANCE.START_SEC, UTTERANCE.END_SEC, UTTERANCE.TEXT);
             for (int i = 0; i < 회의록.size(); i++) {
                 var u = 회의록.get(i);
-                step = step.values(m, i, u.speakerLabel(), u.startSec(), u.endSec(), u.text());
+                step = step.values(회의록ID, i, u.speakerLabel(), u.startSec(), u.endSec(), u.text());
             }
             step.execute();
         }

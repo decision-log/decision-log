@@ -26,7 +26,12 @@ public final class InMemory {
             회의록.put(id.value(), List.of());
             return id;
         }
-        public void 회의록저장(회의ID m, List<Utterance> us) { 회의록.put(m.value(), List.copyOf(us)); }
+        /** 덧붙인다 — 회의 하나가 회의록 여러 개를 갖는다. 덩이 경계는 읽는 쪽이 없어 안 남긴다. */
+        public void 회의록저장(회의ID m, List<Utterance> us) {
+            var 합침 = new ArrayList<>(회의록.getOrDefault(m.value(), List.of()));
+            합침.addAll(us);
+            회의록.put(m.value(), List.copyOf(합침));
+        }
 
         public Object 스냅샷() { return new LinkedHashMap<>(회의록); }
         @SuppressWarnings("unchecked")
