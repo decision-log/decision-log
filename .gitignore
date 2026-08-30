@@ -12,5 +12,8 @@ web/dist/
 *.iml
 .vscode/
 
+# 업로드된 오디오 (dl.data-dir)
+/data/
+
 # OS
 .DS_Store
