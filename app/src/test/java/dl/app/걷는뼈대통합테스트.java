@@ -95,6 +95,7 @@ class 걷는뼈대통합테스트 {
         var 터지는용어집 = new 용어집저장소() {
             public void 추가(List<용어> ts) { throw new IllegalStateException("DB 끊김"); }
             public List<용어> 전량() { return 용어집.전량(); }
+            public void 수정(String 기존표기, String 새표기, String 새뜻) { 용어집.수정(기존표기, 새표기, 새뜻); }
         };
 
         Assertions.assertThrows(IllegalStateException.class, () ->
