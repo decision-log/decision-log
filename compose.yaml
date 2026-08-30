@@ -24,4 +24,10 @@ services:
       SPRING_DATASOURCE_USERNAME: dl
       SPRING_DATASOURCE_PASSWORD: dl
       SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      DL_DATADIR: /data                      # relaxed binding → dl.data-dir
     ports: ["8080:8080"]
+    # 오디오는 파일시스템에 산다 — 강제종료·재기동 후에도 남아야 재시도가 의미를 갖는다
+    volumes: ["data:/data"]
+
+volumes:
+  data: {}

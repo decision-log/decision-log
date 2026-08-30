@@ -70,6 +70,13 @@ public final class InMemory {
         public void 추가(List<용어> 용어들) { for (var t : 용어들) m.putIfAbsent(t.표기(), t); }
         public List<용어> 전량() { return List.copyOf(m.values()); }
 
+        public void 수정(String 기존표기, String 새표기, String 새뜻) {
+            if (!m.containsKey(기존표기)) throw new NoSuchElementException(기존표기);
+            if (!기존표기.equals(새표기) && m.containsKey(새표기)) throw new 표기충돌(새표기);
+            m.remove(기존표기);
+            m.put(새표기, new 용어(새표기, 새뜻));
+        }
+
         public Object 스냅샷() { return new LinkedHashMap<>(m); }
         @SuppressWarnings("unchecked")
         public void 복원(Object s) { m.clear(); m.putAll((Map<String, 용어>) s); }
