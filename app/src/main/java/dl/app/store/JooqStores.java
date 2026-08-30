@@ -116,5 +116,40 @@ public final class JooqStores {
         @Override public List<용어> 전량() {
             return db.selectFrom(GLOSSARY).fetch(r -> new 용어(r.get(GLOSSARY.표기), r.get(GLOSSARY.뜻)));
         }
+
+        /**
+         * 표기가 열쇠라 update 한 방이면 된다 — 충돌만 미리 본다.
+         * 확인과 갱신 사이의 레이스는 6명 규모라 감수한다. 뚫리면 표기 primary key 가 막는다.
+         */
+        @Override public void 수정(String 기존표기, String 새표기, String 새뜻) {
+            if (!기존표기.equals(새표기) && db.fetchExists(GLOSSARY, GLOSSARY.표기.eq(새표기)))
+                throw new 표기충돌(새표기);
+
+            int 바뀐행 = db.update(GLOSSARY)
+                          .set(GLOSSARY.표기, 새표기).set(GLOSSARY.뜻, 새뜻)
+                          .where(GLOSSARY.표기.eq(기존표기))
+                          .execute();
+            if (바뀐행 == 0) throw new NoSuchElementException(기존표기);
+        }
+    }
+
+    /** 명단은 통째 교체다 — 지우고 한 방에 넣는다. 원자성은 호출자가 단위작업으로 감싼다. */
+    public static final class 명단들 implements 명단저장소 {
+        private final DSLContext db;
+        public 명단들(DSLContext db) { this.db = db; }
+
+        @Override public void 명단저장(List<String> 이름들) {
+            db.deleteFrom(PARTICIPANT).execute();
+            if (이름들.isEmpty()) return;
+            var step = db.insertInto(PARTICIPANT).columns(PARTICIPANT.NAME);
+            for (var 이름 : 이름들) step = step.values(이름);
+            step.execute();
+        }
+
+        @Override public List<String> 명단() {
+            return db.select(PARTICIPANT.NAME).from(PARTICIPANT)
+                     .orderBy(PARTICIPANT.NAME)
+                     .fetch(r -> r.get(PARTICIPANT.NAME));
+        }
     }
 }

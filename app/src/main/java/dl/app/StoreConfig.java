@@ -14,5 +14,6 @@ public class StoreConfig {
     @Bean 회의저장소 회의저장소(DSLContext db) { return new JooqStores.회의들(db); }
     @Bean 이슈저장소 이슈저장소(DSLContext db) { return new JooqStores.이슈들(db); }
     @Bean 용어집저장소 용어집저장소(DSLContext db) { return new JooqStores.용어집(db); }
+    @Bean 명단저장소 명단저장소(DSLContext db) { return new JooqStores.명단들(db); }
     @Bean 단위작업 단위작업(DSLContext db) { return new JooqUnitOfWork(db); }
 }
