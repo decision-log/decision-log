@@ -3,6 +3,26 @@
 export type Term = { 표기: string; 뜻: string | null }
 export type PasteResult = { added: number; ignored: number }
 
+export type Meeting = { id: string; title: string; heldOn: string }
+
+/** 상태는 한글 텍스트다 — 서버의 job.state 관례를 그대로 받는다. */
+export type JobState = '대기중' | '처리중' | '완료' | '실패'
+
+/** 진행률은 처리 구현이 정하는 임의의 분수다 — 단계 이름은 고정돼 있지 않다. */
+export type Job = {
+  state: JobState
+  progressDone: number
+  progressTotal: number
+  failureReason: string | null
+}
+
+/** job 은 오디오를 올리기 전엔 null 이다 — 업로드 하나가 잡 하나다. */
+export type MeetingDetail = Meeting & {
+  participants: string[]
+  audioUploaded: boolean
+  job: Job | null
+}
+
 /** 표기 충돌(409)은 화면이 따로 안내해야 해서 구분되는 타입으로 던진다. */
 export class ConflictError extends Error {}
 
@@ -30,6 +50,35 @@ export async function saveParticipants(names: string[]): Promise<string[]> {
   return (await ok(await fetch('/api/participants', {
     method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(names),
   }))).json()
+}
+
+export async function fetchMeetings(): Promise<Meeting[]> {
+  return (await ok(await fetch('/api/meetings'))).json()
+}
+
+export async function fetchMeeting(id: string): Promise<MeetingDetail> {
+  return (await ok(await fetch(`/api/meetings/${id}`))).json()
+}
+
+/** participants 를 안 보내면 서버가 명단 전체를 찍는다 — 여기선 화면이 고른 것을 보낸다. */
+export async function createMeeting(
+  title: string, heldOn: string, participants: string[],
+): Promise<MeetingDetail> {
+  return (await ok(await fetch('/api/meetings', {
+    method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ title, heldOn, participants }),
+  }))).json()
+}
+
+/** 업로드가 곧 처리 시작이다. Content-Type 은 브라우저가 경계(boundary)와 함께 붙인다. */
+export async function uploadAudio(id: string, file: File): Promise<MeetingDetail> {
+  const form = new FormData()
+  form.append('file', file)
+  return (await ok(await fetch(`/api/meetings/${id}/audio`, { method: 'POST', body: form }))).json()
+}
+
+/** 처리중이거나 완료된 잡은 서버가 409 로 거절한다. */
+export async function retryJob(id: string): Promise<MeetingDetail> {
+  return (await ok(await fetch(`/api/meetings/${id}/retry`, { method: 'POST' }))).json()
 }
 
 export async function fetchGlossary(): Promise<Term[]> {

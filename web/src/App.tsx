@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MeetingsPage } from './MeetingsPage'
 import { SettingsPage } from './SettingsPage'
 
 export function App() {
@@ -11,7 +12,11 @@ export function App() {
 
   return (
     <QueryClientProvider client={client}>
-      <SettingsPage />
+      {/* 라우터는 아직 없다 — 화면 둘을 한 장에 세로로 쌓는다 (#6 합의: 라우팅은 화면 이슈에서) */}
+      <main className="mx-auto max-w-3xl space-y-10 p-6">
+        <MeetingsPage />
+        <SettingsPage />
+      </main>
     </QueryClientProvider>
   )
 }
