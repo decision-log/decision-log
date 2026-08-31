@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/table'
 import { fetchGlossary, pasteGlossary, updateTerm, type Term } from './api'
 
-type Editing = { 기존표기: string; 표기: string; 뜻: string }
+type Editing = { oldSpelling: string; spelling: string; meaning: string }
 
 export function GlossarySection() {
   const queryClient = useQueryClient()
@@ -19,7 +19,7 @@ export function GlossarySection() {
   const [editing, setEditing] = useState<Editing | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const terms = [...(data ?? [])].sort((a, b) => a.표기.localeCompare(b.표기, 'ko'))
+  const terms = [...(data ?? [])].sort((a, b) => a.spelling.localeCompare(b.spelling, 'ko'))
 
   const paste = useMutation({
     mutationFn: pasteGlossary,
@@ -33,8 +33,8 @@ export function GlossarySection() {
   })
 
   const update = useMutation({
-    mutationFn: ({ 기존표기, 표기, 뜻 }: Editing) =>
-      updateTerm(기존표기, 표기.trim(), 뜻.trim() === '' ? null : 뜻.trim()),
+    mutationFn: ({ oldSpelling, spelling, meaning }: Editing) =>
+      updateTerm(oldSpelling, spelling.trim(), meaning.trim() === '' ? null : meaning.trim()),
     onSuccess: () => {
       setEditing(null)
       queryClient.invalidateQueries({ queryKey: ['glossary'] })
@@ -44,7 +44,7 @@ export function GlossarySection() {
 
   function startEditing(term: Term) {
     setError(null)
-    setEditing({ 기존표기: term.표기, 표기: term.표기, 뜻: term.뜻 ?? '' })
+    setEditing({ oldSpelling: term.spelling, spelling: term.spelling, meaning: term.meaning ?? '' })
   }
 
   return (
@@ -60,20 +60,20 @@ export function GlossarySection() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {terms.map(term => editing?.기존표기 === term.표기 ? (
-            <TableRow key={term.표기}>
+          {terms.map(term => editing?.oldSpelling === term.spelling ? (
+            <TableRow key={term.spelling}>
               <TableCell>
                 <Input
                   aria-label="표기"
-                  value={editing.표기}
-                  onChange={e => setEditing({ ...editing, 표기: e.target.value })}
+                  value={editing.spelling}
+                  onChange={e => setEditing({ ...editing, spelling: e.target.value })}
                 />
               </TableCell>
               <TableCell>
                 <Input
                   aria-label="뜻"
-                  value={editing.뜻}
-                  onChange={e => setEditing({ ...editing, 뜻: e.target.value })}
+                  value={editing.meaning}
+                  onChange={e => setEditing({ ...editing, meaning: e.target.value })}
                 />
               </TableCell>
               <TableCell className="flex gap-1">
@@ -82,11 +82,11 @@ export function GlossarySection() {
               </TableCell>
             </TableRow>
           ) : (
-            <TableRow key={term.표기}>
-              <TableCell>{term.표기}</TableCell>
-              <TableCell>{term.뜻}</TableCell>
+            <TableRow key={term.spelling}>
+              <TableCell>{term.spelling}</TableCell>
+              <TableCell>{term.meaning}</TableCell>
               <TableCell>
-                <Button variant="outline" aria-label={`${term.표기} 수정`} onClick={() => startEditing(term)}>
+                <Button variant="outline" aria-label={`${term.spelling} 수정`} onClick={() => startEditing(term)}>
                   수정
                 </Button>
               </TableCell>
@@ -99,7 +99,7 @@ export function GlossarySection() {
 
       <div className="space-y-2">
         <label htmlFor="glossary-paste" className="text-sm font-medium">
-          한 줄에 하나, 탭이나 콜론으로 표기와 뜻을 구분
+          한 줄에 하나, 탭이나 콜론으로 spelling와 meaning을 구분
         </label>
         <Textarea
           id="glossary-paste"

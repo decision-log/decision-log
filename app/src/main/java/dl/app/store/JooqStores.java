@@ -2,7 +2,7 @@ package dl.app.store;
 
 import dl.domain.model.Model.*;
 import dl.domain.ports.SttPort.Utterance;
-import dl.domain.ports.저장소.*;
+import dl.domain.ports.Stores.*;
 import org.jooq.DSLContext;
 
 import java.util.*;
@@ -20,14 +20,14 @@ import static org.jooq.impl.DSL.max;
  */
 public final class JooqStores {
 
-    public static final class 회의들 implements 회의저장소 {
+    public static final class Meetings implements MeetingStore {
         private final DSLContext db;
-        public 회의들(DSLContext db) { this.db = db; }
+        public Meetings(DSLContext db) { this.db = db; }
 
-        @Override public 회의ID 새회의() {
+        @Override public MeetingId newMeeting() {
             var id = UUID.randomUUID();
             db.insertInto(MEETING).columns(MEETING.ID).values(id).execute();
-            return new 회의ID(id.toString());
+            return new MeetingId(id.toString());
         }
 
         /**
@@ -37,61 +37,61 @@ public final class JooqStores {
          * 하나라(JooqJobs.시작표시) 같은 회의에 두 벌이 동시에 들어오는 경로가 없다.
          * 뚫리면 {@code unique (meeting_id, seq)} 가 막는다.
          */
-        @Override public void 회의록저장(회의ID 회의, List<Utterance> 회의록) {
-            if (회의록.isEmpty()) return;
-            var m = UUID.fromString(회의.value());
+        @Override public void saveTranscript(MeetingId meeting, List<Utterance> transcript) {
+            if (transcript.isEmpty()) return;
+            var m = UUID.fromString(meeting.value());
 
-            var 회의록ID = UUID.randomUUID();
-            int 다음 = db.select(coalesce(max(TRANSCRIPT.SEQ), inline(-1)))
+            var transcriptId = UUID.randomUUID();
+            int next = db.select(coalesce(max(TRANSCRIPT.SEQ), inline(-1)))
                         .from(TRANSCRIPT).where(TRANSCRIPT.MEETING_ID.eq(m))
                         .fetchSingle().value1() + 1;
             db.insertInto(TRANSCRIPT)
               .columns(TRANSCRIPT.ID, TRANSCRIPT.MEETING_ID, TRANSCRIPT.SEQ)
-              .values(회의록ID, m, 다음)
+              .values(transcriptId, m, next)
               .execute();
 
             var step = db.insertInto(UTTERANCE)
                     .columns(UTTERANCE.TRANSCRIPT_ID, UTTERANCE.SEQ, UTTERANCE.SPEAKER,
                              UTTERANCE.START_SEC, UTTERANCE.END_SEC, UTTERANCE.TEXT);
-            for (int i = 0; i < 회의록.size(); i++) {
-                var u = 회의록.get(i);
-                step = step.values(회의록ID, i, u.speakerLabel(), u.startSec(), u.endSec(), u.text());
+            for (int i = 0; i < transcript.size(); i++) {
+                var u = transcript.get(i);
+                step = step.values(transcriptId, i, u.speakerLabel(), u.startSec(), u.endSec(), u.text());
             }
             step.execute();
         }
     }
 
-    public static final class 이슈들 implements 이슈저장소 {
+    public static final class Issues implements IssueStore {
         private final DSLContext db;
-        public 이슈들(DSLContext db) { this.db = db; }
+        public Issues(DSLContext db) { this.db = db; }
 
-        @Override public void 후보저장(List<이슈후보> 후보들) {
-            if (후보들.isEmpty()) return;
+        @Override public void saveCandidates(List<IssueCandidate> candidates) {
+            if (candidates.isEmpty()) return;
             var step = db.insertInto(ISSUE_CANDIDATE)
                     .columns(ISSUE_CANDIDATE.ID, ISSUE_CANDIDATE.MEETING_ID, ISSUE_CANDIDATE.QUESTION,
                              ISSUE_CANDIDATE.STATE, ISSUE_CANDIDATE.ANSWER, ISSUE_CANDIDATE.SPANS);
-            for (var c : 후보들) {
-                step = step.values(UUID.fromString(c.id().value()), UUID.fromString(c.회의().value()),
-                        c.질문(), c.상태().name(), c.답(), c.근거구간().toArray(new Integer[0]));
+            for (var c : candidates) {
+                step = step.values(UUID.fromString(c.id().value()), UUID.fromString(c.meeting().value()),
+                        c.question(), c.state().name(), c.answer(), c.evidenceSpans().toArray(new Integer[0]));
             }
             step.execute();
         }
 
-        @Override public List<이슈후보> 미확인후보(회의ID 회의) {
-            var m = UUID.fromString(회의.value());
+        @Override public List<IssueCandidate> unconfirmedCandidates(MeetingId meeting) {
+            var m = UUID.fromString(meeting.value());
             return db.selectFrom(ISSUE_CANDIDATE)
                      .where(ISSUE_CANDIDATE.MEETING_ID.eq(m))
                      .and(ISSUE_CANDIDATE.PROMOTED.isFalse())
-                     .fetch(r -> new 이슈후보(
-                             new 이슈ID(r.get(ISSUE_CANDIDATE.ID).toString()), 회의,
+                     .fetch(r -> new IssueCandidate(
+                             new IssueId(r.get(ISSUE_CANDIDATE.ID).toString()), meeting,
                              r.get(ISSUE_CANDIDATE.QUESTION),
-                             상태.valueOf(r.get(ISSUE_CANDIDATE.STATE)),
+                             State.valueOf(r.get(ISSUE_CANDIDATE.STATE)),
                              r.get(ISSUE_CANDIDATE.ANSWER),
                              Arrays.asList(r.get(ISSUE_CANDIDATE.SPANS))));
         }
 
         /** 후보가 자바를 왕복하지 않는다 — DB 안에서 옮긴다. */
-        @Override public void 승격(List<이슈ID> ids) {
+        @Override public void promote(List<IssueId> ids) {
             if (ids.isEmpty()) return;
             var uuids = ids.stream().map(i -> UUID.fromString(i.value())).toList();
 
@@ -107,66 +107,66 @@ public final class JooqStores {
               .where(ISSUE_CANDIDATE.ID.in(uuids)).execute();
         }
 
-        @Override public List<이슈> 전량() {
-            return db.selectFrom(ISSUE).fetch(r -> new 이슈(
-                    new 이슈ID(r.get(ISSUE.ID).toString()), r.get(ISSUE.QUESTION),
-                    상태.valueOf(r.get(ISSUE.STATE)), r.get(ISSUE.ANSWER)));
+        @Override public List<Issue> all() {
+            return db.selectFrom(ISSUE).fetch(r -> new Issue(
+                    new IssueId(r.get(ISSUE.ID).toString()), r.get(ISSUE.QUESTION),
+                    State.valueOf(r.get(ISSUE.STATE)), r.get(ISSUE.ANSWER)));
         }
 
-        @Override public Optional<이슈> 찾기(이슈ID id) {
+        @Override public Optional<Issue> find(IssueId id) {
             return db.selectFrom(ISSUE).where(ISSUE.ID.eq(UUID.fromString(id.value())))
                      .fetchOptional()
-                     .map(r -> new 이슈(id, r.get(ISSUE.QUESTION),
-                             상태.valueOf(r.get(ISSUE.STATE)), r.get(ISSUE.ANSWER)));
+                     .map(r -> new Issue(id, r.get(ISSUE.QUESTION),
+                             State.valueOf(r.get(ISSUE.STATE)), r.get(ISSUE.ANSWER)));
         }
     }
 
-    public static final class 용어집 implements 용어집저장소 {
+    public static final class Glossary implements GlossaryStore {
         private final DSLContext db;
-        public 용어집(DSLContext db) { this.db = db; }
+        public Glossary(DSLContext db) { this.db = db; }
 
         /** 존재 여부를 묻지 않는다 — upsert 한 방이 대신한다. */
-        @Override public void 추가(List<용어> 용어들) {
-            if (용어들.isEmpty()) return;
-            var step = db.insertInto(GLOSSARY).columns(GLOSSARY.표기, GLOSSARY.뜻);
-            for (var t : 용어들) step = step.values(t.표기(), t.뜻());
-            step.onConflict(GLOSSARY.표기).doNothing().execute();
+        @Override public void add(List<Term> terms) {
+            if (terms.isEmpty()) return;
+            var step = db.insertInto(GLOSSARY).columns(GLOSSARY.SPELLING, GLOSSARY.MEANING);
+            for (var t : terms) step = step.values(t.spelling(), t.meaning());
+            step.onConflict(GLOSSARY.SPELLING).doNothing().execute();
         }
 
-        @Override public List<용어> 전량() {
-            return db.selectFrom(GLOSSARY).fetch(r -> new 용어(r.get(GLOSSARY.표기), r.get(GLOSSARY.뜻)));
+        @Override public List<Term> all() {
+            return db.selectFrom(GLOSSARY).fetch(r -> new Term(r.get(GLOSSARY.SPELLING), r.get(GLOSSARY.MEANING)));
         }
 
         /**
          * 표기가 열쇠라 update 한 방이면 된다 — 충돌만 미리 본다.
          * 확인과 갱신 사이의 레이스는 6명 규모라 감수한다. 뚫리면 표기 primary key 가 막는다.
          */
-        @Override public void 수정(String 기존표기, String 새표기, String 새뜻) {
-            if (!기존표기.equals(새표기) && db.fetchExists(GLOSSARY, GLOSSARY.표기.eq(새표기)))
-                throw new 표기충돌(새표기);
+        @Override public void edit(String oldSpelling, String newSpelling, String newMeaning) {
+            if (!oldSpelling.equals(newSpelling) && db.fetchExists(GLOSSARY, GLOSSARY.SPELLING.eq(newSpelling)))
+                throw new SpellingConflict(newSpelling);
 
-            int 바뀐행 = db.update(GLOSSARY)
-                          .set(GLOSSARY.표기, 새표기).set(GLOSSARY.뜻, 새뜻)
-                          .where(GLOSSARY.표기.eq(기존표기))
+            int updated = db.update(GLOSSARY)
+                          .set(GLOSSARY.SPELLING, newSpelling).set(GLOSSARY.MEANING, newMeaning)
+                          .where(GLOSSARY.SPELLING.eq(oldSpelling))
                           .execute();
-            if (바뀐행 == 0) throw new NoSuchElementException(기존표기);
+            if (updated == 0) throw new NoSuchElementException(oldSpelling);
         }
     }
 
     /** 명단은 통째 교체다 — 지우고 한 방에 넣는다. 원자성은 호출자가 단위작업으로 감싼다. */
-    public static final class 명단들 implements 명단저장소 {
+    public static final class Roster implements RosterStore {
         private final DSLContext db;
-        public 명단들(DSLContext db) { this.db = db; }
+        public Roster(DSLContext db) { this.db = db; }
 
-        @Override public void 명단저장(List<String> 이름들) {
+        @Override public void saveRoster(List<String> names) {
             db.deleteFrom(PARTICIPANT).execute();
-            if (이름들.isEmpty()) return;
+            if (names.isEmpty()) return;
             var step = db.insertInto(PARTICIPANT).columns(PARTICIPANT.NAME);
-            for (var 이름 : 이름들) step = step.values(이름);
+            for (var name : names) step = step.values(name);
             step.execute();
         }
 
-        @Override public List<String> 명단() {
+        @Override public List<String> roster() {
             return db.select(PARTICIPANT.NAME).from(PARTICIPANT)
                      .orderBy(PARTICIPANT.NAME)
                      .fetch(r -> r.get(PARTICIPANT.NAME));

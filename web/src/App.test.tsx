@@ -18,7 +18,7 @@ const server = setupServer(
   http.post('*/api/glossary/paste', async ({ request }) => {
     const body = (await request.json()) as { text: string }
     pastedText = body.text
-    glossary = [...glossary, { 표기: '툴 콜링', 뜻: null }, { 표기: '스크럼', 뜻: '매일 아침 회의' }]
+    glossary = [...glossary, { spelling: '툴 콜링', meaning: null }, { spelling: '스크럼', meaning: '매일 아침 회의' }]
     return HttpResponse.json({ added: 2, ignored: 1 })   // 캐디는 이미 있어 무시됐다
   }),
 
@@ -52,7 +52,7 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 beforeEach(() => {
-  glossary = [{ 표기: '캐디', 뜻: '리버스 프록시' }]
+  glossary = [{ spelling: '캐디', meaning: '리버스 프록시' }]
   pastedText = null
   meetings = []
   업로드요청수 = 0

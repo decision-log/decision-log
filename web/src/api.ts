@@ -1,6 +1,6 @@
 /** 서버와의 유일한 창구. 컴포넌트는 fetch 를 직접 부르지 않는다. */
 
-export type Term = { 표기: string; 뜻: string | null }
+export type Term = { spelling: string; meaning: string | null }
 export type PasteResult = { added: number; ignored: number }
 
 export type Meeting = { id: string; title: string; heldOn: string }
@@ -23,7 +23,7 @@ export type MeetingDetail = Meeting & {
   job: Job | null
 }
 
-/** 표기 충돌(409)은 화면이 따로 안내해야 해서 구분되는 타입으로 던진다. */
+/** spelling 충돌(409)은 화면이 따로 안내해야 해서 구분되는 타입으로 던진다. */
 export class ConflictError extends Error {}
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -91,8 +91,8 @@ export async function pasteGlossary(text: string): Promise<PasteResult> {
   }))).json()
 }
 
-export async function updateTerm(기존표기: string, 새표기: string, 새뜻: string | null): Promise<Term> {
+export async function updateTerm(oldSpelling: string, newSpelling: string, newMeaning: string | null): Promise<Term> {
   return (await ok(await fetch('/api/glossary/entry', {
-    method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ 기존표기, 새표기, 새뜻 }),
+    method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ oldSpelling, newSpelling, newMeaning }),
   }))).json()
 }

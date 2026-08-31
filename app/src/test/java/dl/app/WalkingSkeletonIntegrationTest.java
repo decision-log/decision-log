@@ -5,11 +5,11 @@ import dl.adapters.stt.SimulatorSttAdapter;
 import dl.adapters.stt.SimulatorSttAdapter.Mode;
 import dl.adapters.stt.SimulatorSttAdapter.Rule;
 import dl.app.store.QueryCounter;
-import dl.domain.회차오케스트레이터;
+import dl.domain.RoundOrchestrator;
 import dl.domain.model.Model.*;
 import dl.domain.ports.SttPort.Audio;
-import dl.domain.ports.단위작업;
-import dl.domain.ports.저장소.*;
+import dl.domain.ports.UnitOfWork;
+import dl.domain.ports.Stores.*;
 import org.jooq.ExecuteListenerProvider;
 import org.jooq.impl.DefaultExecuteListenerProvider;
 import org.junit.jupiter.api.*;
@@ -40,47 +40,47 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @Testcontainers
-class 걷는뼈대통합테스트 {
+class WalkingSkeletonIntegrationTest {
 
     @Container @ServiceConnection
     static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @TestConfiguration
-    static class 카운터배선 {
+    static class CounterWiring {
         @Bean QueryCounter queryCounter() { return new QueryCounter(); }
-        @Bean ExecuteListenerProvider 카운터(QueryCounter c) { return new DefaultExecuteListenerProvider(c); }
+        @Bean ExecuteListenerProvider counter(QueryCounter c) { return new DefaultExecuteListenerProvider(c); }
     }
 
-    @Autowired 회의저장소 회의들;
-    @Autowired 이슈저장소 이슈들;
-    @Autowired 용어집저장소 용어집;
-    @Autowired 단위작업 단위;
-    @Autowired QueryCounter 카운터;
-    @Value("${local.server.port}") int 포트;
+    @Autowired MeetingStore meetings;
+    @Autowired IssueStore issues;
+    @Autowired GlossaryStore glossary;
+    @Autowired UnitOfWork unit;
+    @Autowired QueryCounter counter;
+    @Value("${local.server.port}") int port;
 
     /** 가짜 STT 는 오디오가 아니라 대본을 받는다 (ADR 0005) — 그 자리가 Audio 다. */
-    static final String 대본 = String.join("\n", List.of(
+    static final String script = String.join("\n", List.of(
             "리버스 프록시는 «용어:Caddy»로 가죠 «이슈:리버스 프록시를 무엇으로 할 것인가»",
             "«용어:툴 콜링» 실패를 «이슈:툴 콜링 실패를 어떻게 처리할 것인가»",
             "«용어:스크럼»은 매일 아침에 합니다"));
 
     /** 이 테스트가 재는 것은 오염이 아니라 배선이라, 규칙은 한 벌만 둔다. */
-    static final List<Rule> 규칙 = List.of(new Rule("Caddy", Mode.일관, List.of("캐디")));
+    static final List<Rule> rules = List.of(new Rule("Caddy", Mode.STEADY, List.of("캐디")));
 
-    private 회차오케스트레이터 오케(용어집저장소 g) {
-        return new 회차오케스트레이터(new SimulatorSttAdapter(규칙, 7L),
-                new MarkerExtractAdapter(), 회의들, 이슈들, g, 단위);
+    private RoundOrchestrator orchestrator(GlossaryStore g) {
+        return new RoundOrchestrator(new SimulatorSttAdapter(rules, 7L),
+                new MarkerExtractAdapter(), meetings, issues, g, unit);
     }
 
     /** 회의를 만드는 것은 호출자의 일이다 — 오케스트레이터가 더 이상 안 만든다. */
-    private 회차오케스트레이터.회차결과 한회차돈다(회차오케스트레이터 o) {
-        return o.돈다(회의들.새회의(),
-                new Audio(대본.getBytes(java.nio.charset.StandardCharsets.UTF_8), "m.txt"), "1");
+    private RoundOrchestrator.RoundResult runOneRound(RoundOrchestrator o) {
+        return o.run(meetings.newMeeting(),
+                new Audio(script.getBytes(java.nio.charset.StandardCharsets.UTF_8), "m.txt"), "1");
     }
 
-    private HttpResponse<String> GET(String 경로) throws Exception {
+    private HttpResponse<String> GET(String path) throws Exception {
         return HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create("http://localhost:" + 포트 + 경로)).GET().build(),
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build(),
                 HttpResponse.BodyHandlers.ofString());
     }
 
@@ -90,42 +90,42 @@ class 걷는뼈대통합테스트 {
         assertThat(api.statusCode()).isEqualTo(200);
         assertThat(api.body()).contains("\"ok\":true");
 
-        var 화면 = GET("/");
-        assertThat(화면.statusCode()).isEqualTo(200);
-        assertThat(화면.body()).contains("<div id=\"root\">");
+        var page = GET("/");
+        assertThat(page.statusCode()).isEqualTo(200);
+        assertThat(page.body()).contains("<div id=\"root\">");
     }
 
     @Test
     void 확인은_한_단위다() {
-        var o = 오케(용어집);
-        var r = 한회차돈다(o);
-        int 이슈전 = 이슈들.전량().size(), 용어전 = 용어집.전량().size();
+        var o = orchestrator(glossary);
+        var r = runOneRound(o);
+        int issuesBefore = issues.all().size(), termsBefore = glossary.all().size();
 
-        var 터지는용어집 = new 용어집저장소() {
-            public void 추가(List<용어> ts) { throw new IllegalStateException("DB 끊김"); }
-            public List<용어> 전량() { return 용어집.전량(); }
-            public void 수정(String 기존표기, String 새표기, String 새뜻) { 용어집.수정(기존표기, 새표기, 새뜻); }
+        var explodingGlossary = new GlossaryStore() {
+            public void add(List<Term> ts) { throw new IllegalStateException("DB 끊김"); }
+            public List<Term> all() { return glossary.all(); }
+            public void edit(String oldSpelling, String newSpelling, String newMeaning) { glossary.edit(oldSpelling, newSpelling, newMeaning); }
         };
 
         Assertions.assertThrows(IllegalStateException.class, () ->
-                오케(터지는용어집).확인(r.후보().stream().map(이슈후보::id).toList(), r.용어후보()));
+                orchestrator(explodingGlossary).confirm(r.candidates().stream().map(IssueCandidate::id).toList(), r.termCandidates()));
 
-        assertThat(이슈들.전량()).hasSize(이슈전);      // 승격이 되돌아갔다
-        assertThat(용어집.전량()).hasSize(용어전);
+        assertThat(issues.all()).hasSize(issuesBefore);      // 승격이 되돌아갔다
+        assertThat(glossary.all()).hasSize(termsBefore);
     }
 
     @Test
     void 확인이_후보_수만큼_왕복하지_않는다() {
-        var o = 오케(용어집);
-        var r = 한회차돈다(o);
+        var o = orchestrator(glossary);
+        var r = runOneRound(o);
 
-        카운터.초기화();
-        o.확인(r.후보().stream().map(이슈후보::id).toList(), r.용어후보());
+        counter.reset();
+        o.confirm(r.candidates().stream().map(IssueCandidate::id).toList(), r.termCandidates());
 
         // 승격 2방(insert…select + update) + 용어 upsert 1방. 후보 수와 무관해야 한다.
-        assertThat(카운터.횟수())
-                .as("확인() SQL: %s", 카운터.쿼리())
+        assertThat(counter.count())
+                .as("확인() SQL: %s", counter.queries())
                 .isLessThanOrEqualTo(4);
-        assertThat(용어집.전량()).extracting(용어::표기).contains("툴 콜링", "스크럼");
+        assertThat(glossary.all()).extracting(Term::spelling).contains("툴 콜링", "스크럼");
     }
 }

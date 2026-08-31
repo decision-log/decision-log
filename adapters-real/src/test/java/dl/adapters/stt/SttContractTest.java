@@ -14,34 +14,34 @@ abstract class SttContractTest {
 
     abstract SttPort adapter();
 
-    private static List<ContextItem> 컨텍스트(int n) {
+    private static List<ContextItem> context(int n) {
         var out = new ArrayList<ContextItem>();
-        for (int i = 0; i < n; i++) out.add(new ContextItem(ContextKind.용어, "용어" + i + "0123456789", null));
+        for (int i = 0; i < n; i++) out.add(new ContextItem(ContextKind.TERM, "용어" + i + "0123456789", null));
         return out;
     }
 
     @Test
     void 전사요청은_결과를_낸다() {
         var port = adapter();
-        var id = port.전사요청(new Audio("fake-audio".getBytes(), "m.mp3"), List.of());
-        assertThat(port.작업상태(id)).isInstanceOf(JobStatus.Done.class);
-        assertThat(port.결과(id).회의록()).isNotEmpty();
+        var id = port.requestTranscription(new Audio("fake-audio".getBytes(), "m.mp3"), List.of());
+        assertThat(port.jobStatus(id)).isInstanceOf(JobStatus.Done.class);
+        assertThat(port.result(id).transcript()).isNotEmpty();
     }
 
     @Test
     void 컨텍스트는_조용히_사라지지_않는다() {
         var port = adapter();
-        var 넣은것 = 컨텍스트(200);                       // 한도를 확실히 넘긴다
-        var id = port.전사요청(new Audio("a".getBytes(), "m.mp3"), 넣은것);
-        var r = port.결과(id);
-        assertThat(r.반영된컨텍스트().size() + r.잘린컨텍스트().size()).isEqualTo(넣은것.size());
+        var sent = context(200);                       // 한도를 확실히 넘긴다
+        var id = port.requestTranscription(new Audio("a".getBytes(), "m.mp3"), sent);
+        var r = port.result(id);
+        assertThat(r.appliedContext().size() + r.droppedContext().size()).isEqualTo(sent.size());
     }
 
     @Test
     void 원본응답을_보관한다() {
         var port = adapter();
-        var id = port.전사요청(new Audio("a".getBytes(), "m.mp3"), List.of());
-        assertThat(port.결과(id).원본응답()).isNotEmpty();
+        var id = port.requestTranscription(new Audio("a".getBytes(), "m.mp3"), List.of());
+        assertThat(port.result(id).rawResponses()).isNotEmpty();
     }
 
     /**
@@ -51,8 +51,8 @@ abstract class SttContractTest {
     @Test
     void 화자_라벨을_거짓으로_채우지_않는다() {
         var port = adapter();
-        var id = port.전사요청(new Audio("a".getBytes(), "m.mp3"), List.of());
-        for (var u : port.결과(id).회의록())
+        var id = port.requestTranscription(new Audio("a".getBytes(), "m.mp3"), List.of());
+        for (var u : port.result(id).transcript())
             assertThat(u.speakerLabel() == null || !u.speakerLabel().isBlank())
                     .as("화자 라벨: '%s'", u.speakerLabel())
                     .isTrue();
@@ -62,14 +62,14 @@ abstract class SttContractTest {
     @Test
     void 타임스탬프는_구간이다() {
         var port = adapter();
-        var id = port.전사요청(new Audio("a\nb\nc".getBytes(), "m.mp3"), List.of());
-        var 회의록 = port.결과(id).회의록();
+        var id = port.requestTranscription(new Audio("a\nb\nc".getBytes(), "m.mp3"), List.of());
+        var transcript = port.result(id).transcript();
 
-        double 앞선시작 = Double.NEGATIVE_INFINITY;
-        for (var u : 회의록) {
+        double previousStart = Double.NEGATIVE_INFINITY;
+        for (var u : transcript) {
             assertThat(u.startSec()).as("시작 ≤ 끝").isLessThanOrEqualTo(u.endSec());
-            assertThat(u.startSec()).as("구간은 앞으로만 간다").isGreaterThanOrEqualTo(앞선시작);
-            앞선시작 = u.startSec();
+            assertThat(u.startSec()).as("구간은 앞으로만 간다").isGreaterThanOrEqualTo(previousStart);
+            previousStart = u.startSec();
         }
     }
 }

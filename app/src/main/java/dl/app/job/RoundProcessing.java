@@ -1,7 +1,7 @@
 package dl.app.job;
 
-import dl.domain.회차오케스트레이터;
-import dl.domain.model.Model.회의ID;
+import dl.domain.RoundOrchestrator;
+import dl.domain.model.Model.MeetingId;
 import dl.domain.ports.SttPort.Audio;
 
 import java.nio.file.Files;
@@ -17,24 +17,24 @@ import java.util.UUID;
  * <p><b>지금은 전사까지다.</b> 추출 경계는 #5 의 산출물이라, #5 가 여기에
  * {@code 추출한다} 를 덧붙이고 진행을 2단계로 늘린다.
  */
-public final class 회차처리 implements 처리 {
+public final class RoundProcessing implements Processing {
 
     /** 전사 하나뿐이다. 진짜 공급자가 청크로 나눠 돌면 그 구조는 #7 이 정한다. */
-    private static final int 단계수 = 1;
+    private static final int steps = 1;
 
-    private final 회차오케스트레이터 오케;
+    private final RoundOrchestrator orchestrator;
 
-    public 회차처리(회차오케스트레이터 오케) { this.오케 = 오케; }
+    public RoundProcessing(RoundOrchestrator orchestrator) { this.orchestrator = orchestrator; }
 
     @Override
-    public void 처리한다(UUID 회의, Path 오디오, 진행보고 보고) throws Exception {
-        보고.진행(0, 단계수);
+    public void process(UUID meeting, Path audio, ProgressReporter reporter) throws Exception {
+        reporter.progress(0, steps);
 
         // 시뮬레이터가 꽂혀 있는 동안 이 바이트는 대본이다 (ADR 0005). 진짜 어댑터가 오면
         // 그대로 오디오가 된다 — 어느 쪽이든 포트가 받는 모양은 바이트 + 파일명이다.
-        var audio = new Audio(Files.readAllBytes(오디오), 오디오.getFileName().toString());
-        오케.전사한다(new 회의ID(회의.toString()), audio);
+        var payload = new Audio(Files.readAllBytes(audio), audio.getFileName().toString());
+        orchestrator.transcribe(new MeetingId(meeting.toString()), payload);
 
-        보고.진행(단계수, 단계수);
+        reporter.progress(steps, steps);
     }
 }

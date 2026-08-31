@@ -21,34 +21,34 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SimulatorSttAdapterTest {
 
     /** ADR 0005 의 예시 규칙 — 실측이 아니라 역방향 기제를 보이려고 만든 것이다. */
-    private static final Rule 캐디 = new Rule("Caddy", Mode.일관, List.of("캐디"), List.of("캐시"));
+    private static final Rule CADDY = new Rule("Caddy", Mode.STEADY, List.of("캐디"), List.of("캐시"));
 
     // ── 결정성 ──────────────────────────────────────────────
 
     @Test
     void 시드를_고정하면_같은_대본_같은_컨텍스트에_같은_회의록이_나온다() {
-        var 대본 = "툴 콜링이 툴 콜링을 부르고 툴 콜링이 또 툴 콜링을 부른다";
+        var script = "툴 콜링이 툴 콜링을 부르고 툴 콜링이 또 툴 콜링을 부른다";
 
-        assertThat(전사(시뮬레이터(7L), 대본)).isEqualTo(전사(시뮬레이터(7L), 대본));
+        assertThat(transcription(simulator(7L), script)).isEqualTo(transcription(simulator(7L), script));
 
         // 같은 어댑터를 두 번 불러도 같다 — 호출마다 시드를 다시 건다
-        var 한벌 = 시뮬레이터(7L);
-        assertThat(전사(한벌, 대본)).isEqualTo(전사(한벌, 대본));
+        var one = simulator(7L);
+        assertThat(transcription(one, script)).isEqualTo(transcription(one, script));
 
         // 시드가 다르면 흔들림이 다르게 뽑힌다
-        assertThat(전사(시뮬레이터(1L), 대본)).isNotEqualTo(전사(시뮬레이터(2L), 대본));
+        assertThat(transcription(simulator(1L), script)).isNotEqualTo(transcription(simulator(2L), script));
     }
 
     // ── 컨텍스트가 전사를 바꾼다 ────────────────────────────
 
     @Test
     void 컨텍스트에_용어를_넣으면_고착이_사라진다() {
-        var 대본 = "스크럼은 매일 아침에 합니다";
+        var script = "스크럼은 매일 아침에 합니다";
 
-        assertThat(전사(시뮬레이터(7L), 대본))
+        assertThat(transcription(simulator(7L), script))
                 .containsExactly("시끄러움은 매일 아침에 합니다");
 
-        assertThat(전사(시뮬레이터(7L), 대본, 용어("스크럼")))
+        assertThat(transcription(simulator(7L), script, Term("스크럼")))
                 .containsExactly("스크럼은 매일 아침에 합니다");
     }
 
@@ -58,14 +58,14 @@ class SimulatorSttAdapterTest {
      */
     @Test
     void 컨텍스트에_있는_용어_쪽으로_엉뚱한_말이_끌려간다() {
-        var 대본 = "응답 캐시를 걸어두면 빨라집니다";
-        var stt = new SimulatorSttAdapter(List.of(캐디), 7L);
+        var script = "응답 캐시를 걸어두면 빨라집니다";
+        var stt = new SimulatorSttAdapter(List.of(CADDY), 7L);
 
-        assertThat(전사(stt, 대본))
+        assertThat(transcription(stt, script))
                 .as("컨텍스트에 없으면 아무 일도 안 일어난다")
                 .containsExactly("응답 캐시를 걸어두면 빨라집니다");
 
-        assertThat(전사(stt, 대본, 용어("Caddy")))
+        assertThat(transcription(stt, script, Term("Caddy")))
                 .as("넣은 어휘 쪽으로 끌려간다")
                 .containsExactly("응답 Caddy를 걸어두면 빨라집니다");
     }
@@ -74,41 +74,41 @@ class SimulatorSttAdapterTest {
 
     @Test
     void 일관은_한_회차_안에서_같은_형태로_깨진다() {
-        var 회의록 = 전사(시뮬레이터(7L), "스크럼 이야기\n또 스크럼 이야기\n계속 스크럼 이야기");
+        var transcript = transcription(simulator(7L), "스크럼 이야기\n또 스크럼 이야기\n계속 스크럼 이야기");
 
-        assertThat(회의록).allSatisfy(줄 -> assertThat(줄).contains("시끄러움"));
-        assertThat(회의록).noneSatisfy(줄 -> assertThat(줄).contains("스크럼"));
+        assertThat(transcript).allSatisfy(line -> assertThat(line).contains("시끄러움"));
+        assertThat(transcript).noneSatisfy(line -> assertThat(line).contains("스크럼"));
     }
 
     /** 흔들림은 등장마다 다시 뽑는다 — 한 줄 안에서도 형태가 갈려야 한다. */
     @Test
     void 흔들림은_같은_말을_여러_형태로_깨뜨린다() {
-        var 한줄 = "툴 콜링 ".repeat(12).strip();
-        var 나온것 = 전사(시뮬레이터(7L), 한줄).getFirst();
+        var oneLine = "툴 콜링 ".repeat(12).strip();
+        var produced = transcription(simulator(7L), oneLine).getFirst();
 
-        var 형태들 = 실측오염규칙.툴콜링.오염형().stream().filter(나온것::contains).toList();
-        assertThat(형태들).as("나온 회의록: %s", 나온것).hasSizeGreaterThan(1);
-        assertThat(나온것).doesNotContain("툴 콜링");
+        var forms = MeasuredCorruptionRules.TOOL_CALLING.corruptions().stream().filter(produced::contains).toList();
+        assertThat(forms).as("나온 회의록: %s", produced).hasSizeGreaterThan(1);
+        assertThat(produced).doesNotContain("툴 콜링");
     }
 
     // ── 규칙끼리 부딪히는 자리 ──────────────────────────────
 
     @Test
     void gitignore가_git_규칙에_먼저_먹히지_않는다() {
-        var 나온것 = 전사(시뮬레이터(7L), ".gitignore 에 .git 을 적는다").getFirst();
+        var produced = transcription(simulator(7L), ".gitignore 에 .git 을 적는다").getFirst();
 
-        assertThat(나온것).isEqualTo("GD 근원 에 점기 을 적는다");
-        assertThat(나온것).as("긴 정답부터 걸려야 한다").doesNotContain("점기ignore");
+        assertThat(produced).isEqualTo("GD 근원 에 점기 을 적는다");
+        assertThat(produced).as("긴 정답부터 걸려야 한다").doesNotContain("점기ignore");
     }
 
     // ── 대본이 아닌 것 ──────────────────────────────────────
 
     @Test
     void 텍스트가_아니면_조용히_쓰레기를_만들지_않고_실패한다() {
-        var 진짜오디오처럼 = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0x80, 0x41};
+        var audioLikeBytes = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0x80, 0x41};
 
-        assertThatThrownBy(() -> 시뮬레이터(7L)
-                .전사요청(new Audio(진짜오디오처럼, "회의녹음.mp3"), List.of()))
+        assertThatThrownBy(() -> simulator(7L)
+                .requestTranscription(new Audio(audioLikeBytes, "회의녹음.mp3"), List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("대본")
                 .hasMessageContaining("회의녹음.mp3");
@@ -116,16 +116,16 @@ class SimulatorSttAdapterTest {
 
     // ── 헬퍼 ────────────────────────────────────────────────
 
-    private static SimulatorSttAdapter 시뮬레이터(long 시드) {
-        return new SimulatorSttAdapter(실측오염규칙.전량(), 시드);
+    private static SimulatorSttAdapter simulator(long seed) {
+        return new SimulatorSttAdapter(MeasuredCorruptionRules.all(), seed);
     }
 
-    private static List<String> 전사(SimulatorSttAdapter stt, String 대본, ContextItem... 컨텍스트) {
-        var id = stt.전사요청(new Audio(대본.getBytes(StandardCharsets.UTF_8), "m.txt"), List.of(컨텍스트));
-        return stt.결과(id).회의록().stream().map(Utterance::text).toList();
+    private static List<String> transcription(SimulatorSttAdapter stt, String script, ContextItem... context) {
+        var id = stt.requestTranscription(new Audio(script.getBytes(StandardCharsets.UTF_8), "m.txt"), List.of(context));
+        return stt.result(id).transcript().stream().map(Utterance::text).toList();
     }
 
-    private static ContextItem 용어(String 표기) {
-        return new ContextItem(ContextKind.용어, 표기, null);
+    private static ContextItem Term(String spelling) {
+        return new ContextItem(ContextKind.TERM, spelling, null);
     }
 }
