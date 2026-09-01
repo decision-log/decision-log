@@ -9,7 +9,7 @@ let glossary: Term[]
 let pastedText: string | null
 let meetings: Meeting[]
 let detail: MeetingDetail
-let 업로드요청수: number
+let uploadCount: number
 
 /** 목은 네트워크에 건다 — 화면은 테스트를 위해 모양을 바꾸지 않는다 (stack.md) */
 const server = setupServer(
@@ -27,7 +27,7 @@ const server = setupServer(
   // jsdom 의 fetch 는 FormData 본문을 다루지 못해(문자열로 뭉갠다) 여기선 파일 내용을 볼 수 없다.
   // multipart 로 파일이 실제로 건너가는지는 서버쪽 잡통합테스트가 진짜 HTTP 로 본다.
   http.post('*/api/meetings/:id/audio', () => {
-    업로드요청수 += 1
+    uploadCount += 1
     // 실패 사유는 서버가 보낸 문장을 그대로 보여준다 — 화면은 사유를 해석하지 않는다
     detail = {
       ...detail,
@@ -55,7 +55,7 @@ beforeEach(() => {
   glossary = [{ spelling: '캐디', meaning: '리버스 프록시' }]
   pastedText = null
   meetings = []
-  업로드요청수 = 0
+  uploadCount = 0
   detail = {
     id: 'm1', title: '3월 2일 회의', heldOn: '2026-03-02',
     participants: ['가영', '나영'], audioUploaded: false, job: null,
@@ -68,7 +68,7 @@ test('붙여넣은 용어가 용어집에 들어가고 결과가 요약된다', 
 
   expect(await screen.findByText('캐디')).toBeInTheDocument()
 
-  const box = screen.getByLabelText(/한 줄에 하나/)
+  const box = screen.getByLabelText('한 줄에 하나, 탭이나 콜론으로 표기와 뜻을 구분')
   await user.click(box)
   await user.paste('툴 콜링\n스크럼: 매일 아침 회의\n캐디: 리버스 프록시')
   await user.click(screen.getByRole('button', { name: '넣기' }))
@@ -95,7 +95,7 @@ test('오디오를 올리면 상태가 보이고, 실패하면 다시 돌릴 수
     screen.getByLabelText('오디오 파일'),
     new File(['소리'], '회의녹음.mp3', { type: 'audio/mpeg' }),
   )
-  expect(업로드요청수).toBe(1)
+  expect(uploadCount).toBe(1)
 
   // 업로드 직후 즉시 한 번 더 조회한다 — 폴링 간격을 기다리지 않는다
   expect(await screen.findByText('실패')).toBeInTheDocument()

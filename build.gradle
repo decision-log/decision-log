@@ -9,15 +9,15 @@ plugins {
  * 클래스패스 부재만으로는 "빌드 파일을 고치면 뚫린다" 를 못 막으므로,
  * 해결된 런타임 클래스패스를 직접 들여다본다 — 전이 의존까지 잡힌다.
  */
-def 프레임워크금지 = ['domain', 'adapters-fake', 'sim']
-def 금지목록 = [
+def frameworkFree = ['domain', 'adapters-fake', 'sim']
+def banned = [
         'org.springframework', 'org.springframework.boot',
         'jakarta.servlet', 'jakarta.persistence',
         'org.hibernate', 'org.jooq',
 ]
 
 subprojects { sub ->
-    if (!(sub.name in 프레임워크금지)) return
+    if (!(sub.name in frameworkFree)) return
 
     // java 플러그인이 붙은 뒤에 걸어야 한다 — subprojects{} 는 그 전에 돈다
     sub.plugins.withId('java') {
@@ -26,11 +26,11 @@ subprojects { sub ->
         description = "${sub.name} 클래스패스에 프레임워크가 없는지 확인한다"
 
         // compileOnly 는 runtimeClasspath 에 안 나온다 — 둘 다 본다
-        def 검사대상 = ['runtimeClasspath', 'compileClasspath',
+        def classpaths = ['runtimeClasspath', 'compileClasspath',
                         'testRuntimeClasspath', 'testCompileClasspath']
-        def cps = 검사대상.collect { sub.configurations.named(it) }
+        def cps = classpaths.collect { sub.configurations.named(it) }
         def name = sub.name
-        def denied = 금지목록
+        def denied = banned
 
         doLast {
             def total = 0
@@ -40,7 +40,7 @@ subprojects { sub ->
                 total = Math.max(total, arts.size())
                 arts.collect { "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}" }
                     .findAll { a -> denied.any { d -> a.startsWith(d) } }
-                    .each { hits << "${검사대상[i]}: ${it}" }
+                    .each { hits << "${classpaths[i]}: ${it}" }
             }
             if (hits) {
                 throw new GradleException(
@@ -56,5 +56,5 @@ subprojects { sub ->
 
 tasks.register('boundaryCheck') {
     group = 'verification'
-    dependsOn 프레임워크금지.collect { ":${it}:boundaryCheck" }
+    dependsOn frameworkFree.collect { ":${it}:boundaryCheck" }
 }

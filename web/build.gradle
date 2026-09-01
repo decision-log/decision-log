@@ -7,12 +7,12 @@ node {
     npmWorkDir = layout.buildDirectory.dir('npm')
 }
 
-def 소스 = fileTree('src') + files('index.html', 'vite.config.ts', 'tsconfig.json', 'package.json')
+def sources = fileTree('src') + files('index.html', 'vite.config.ts', 'tsconfig.json', 'package.json')
 
 tasks.register('viteBuild', NpmTask) {
     dependsOn tasks.npmInstall
     args = ['run', 'build']
-    inputs.files(소스).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(sources).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file('package.json')
     outputs.dir(layout.projectDirectory.dir('dist'))
 }
@@ -20,7 +20,7 @@ tasks.register('viteBuild', NpmTask) {
 tasks.register('viteTest', NpmTask) {
     dependsOn tasks.npmInstall
     args = ['run', 'test']
-    inputs.files(소스).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(sources).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(layout.buildDirectory.dir('vitest-marker'))
 }
 

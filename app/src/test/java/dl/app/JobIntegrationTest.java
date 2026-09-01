@@ -160,8 +160,8 @@ class JobIntegrationTest {
         assertThat(upload(meeting, "회의녹음.mp3", audioLikeBytes).statusCode()).isEqualTo(200);
 
         var failure = waitForJob(meeting, "실패");
-        var reasonOf = failure.get("failureReason").asText();
-        assertThat(reasonOf).contains("대본").contains("회의녹음.mp3");   // 왜 실패했는지가 화면에서 읽힌다
+        var reason = failure.get("failureReason").asText();
+        assertThat(reason).contains("대본").contains("회의녹음.mp3");   // 왜 실패했는지가 화면에서 읽힌다
         assertThat(failure.get("progressDone").asInt()).isZero();
 
         // 재시도는 같은 행 리셋 — 진행률과 사유가 함께 초기화된다
@@ -170,7 +170,7 @@ class JobIntegrationTest {
 
         // 같은 파일이므로 다시 실패한다 — 재시도는 같은 오디오를 다시 돌리는 것뿐이다
         var failedAgain = waitForJob(meeting, "실패");
-        assertThat(failedAgain.get("failureReason").asText()).isEqualTo(reasonOf);
+        assertThat(failedAgain.get("failureReason").asText()).isEqualTo(reason);
 
         // 목록에도 보인다
         assertThat(GET("/api/meetings").body()).contains("실패할 회의");
@@ -252,9 +252,9 @@ class JobIntegrationTest {
         return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
-    private static java.util.List<String> names(JsonNode 배열) {
+    private static java.util.List<String> names(JsonNode array) {
         var result = new java.util.ArrayList<String>();
-        배열.forEach(n -> result.add(n.asText()));
+        array.forEach(n -> result.add(n.asText()));
         return result;
     }
 
