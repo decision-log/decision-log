@@ -21,23 +21,23 @@ public final class JooqMeetings {
     public JooqMeetings(DSLContext db) { this.db = db; }
 
     /** 화면이 읽는 회의 하나. 참가자는 그 회의가 찍힌 시점의 스냅샷이다. */
-    public record 단건(UUID id, String 제목, LocalDate 날짜, List<String> 참가자, String 오디오경로) {}
+    public record Detail(UUID id, String title, LocalDate heldOn, List<String> participants, String audioPath) {}
 
     /** 목록 줄 하나 — 상세를 열기 전에 보이는 것만. */
-    public record 줄(UUID id, String 제목, LocalDate 날짜) {}
+    public record Row(UUID id, String title, LocalDate heldOn) {}
 
     /** 참가자는 명단을 참조하지 않고 복사한다 — 명단이 바뀌어도 이 회의의 사실은 안 변한다. */
-    public UUID 생성(String 제목, LocalDate 날짜, List<String> 참가자) {
+    public UUID create(String title, LocalDate heldOn, List<String> participants) {
         var id = UUID.randomUUID();
         db.insertInto(MEETING)
           .columns(MEETING.ID, MEETING.TITLE, MEETING.HELD_ON)
-          .values(id, 제목, 날짜)
+          .values(id, title, heldOn)
           .execute();
 
-        if (!참가자.isEmpty()) {
+        if (!participants.isEmpty()) {
             var step = db.insertInto(MEETING_PARTICIPANT)
                          .columns(MEETING_PARTICIPANT.MEETING_ID, MEETING_PARTICIPANT.NAME);
-            for (var 이름 : 참가자) step = step.values(id, 이름);
+            for (var name : participants) step = step.values(id, name);
             step.onConflict(MEETING_PARTICIPANT.MEETING_ID, MEETING_PARTICIPANT.NAME)
                 .doNothing()
                 .execute();
@@ -46,36 +46,36 @@ public final class JooqMeetings {
     }
 
     /** 최근 회의가 위로 — 같은 날이면 만든 순서의 역순. */
-    public List<줄> 목록() {
+    public List<Row> list() {
         return db.select(MEETING.ID, MEETING.TITLE, MEETING.HELD_ON)
                  .from(MEETING)
                  .orderBy(MEETING.HELD_ON.desc(), MEETING.STARTED_AT.desc())
-                 .fetch(r -> new 줄(r.get(MEETING.ID), r.get(MEETING.TITLE), r.get(MEETING.HELD_ON)));
+                 .fetch(r -> new Row(r.get(MEETING.ID), r.get(MEETING.TITLE), r.get(MEETING.HELD_ON)));
     }
 
     /**
      * 오디오 경로 선점. 비어 있을 때만 기록된다 — 0행이면 이미 누가 올렸다는 뜻이다.
      * 재업로드(교체)는 범위 밖이라 덮어쓰기가 아니라 거절이다.
      */
-    public boolean 오디오경로기록(UUID id, String 경로) {
+    public boolean claimAudioPath(UUID id, String path) {
         return db.update(MEETING)
-                 .set(MEETING.AUDIO_PATH, 경로)
+                 .set(MEETING.AUDIO_PATH, path)
                  .where(MEETING.ID.eq(id)).and(MEETING.AUDIO_PATH.isNull())
                  .execute() == 1;
     }
 
-    public Optional<단건> 단건(UUID id) {
+    public Optional<Detail> detail(UUID id) {
         return db.select(MEETING.ID, MEETING.TITLE, MEETING.HELD_ON, MEETING.AUDIO_PATH)
                  .from(MEETING).where(MEETING.ID.eq(id))
                  .fetchOptional()
-                 .map(r -> new 단건(r.get(MEETING.ID), r.get(MEETING.TITLE), r.get(MEETING.HELD_ON),
-                                    참가자(id), r.get(MEETING.AUDIO_PATH)));
+                 .map(r -> new Detail(r.get(MEETING.ID), r.get(MEETING.TITLE), r.get(MEETING.HELD_ON),
+                                    participants(id), r.get(MEETING.AUDIO_PATH)));
     }
 
     /** 순서는 의미를 갖지 않는다 — 명단과 같이 이름순으로 준다. */
-    private List<String> 참가자(UUID 회의) {
+    private List<String> participants(UUID meeting) {
         return db.select(MEETING_PARTICIPANT.NAME).from(MEETING_PARTICIPANT)
-                 .where(MEETING_PARTICIPANT.MEETING_ID.eq(회의))
+                 .where(MEETING_PARTICIPANT.MEETING_ID.eq(meeting))
                  .orderBy(MEETING_PARTICIPANT.NAME)
                  .fetch(r -> r.get(MEETING_PARTICIPANT.NAME));
     }

@@ -26,7 +26,7 @@ public final class OpenAiSttAdapter implements SttPort {
     }
 
     @Override
-    public JobId 전사요청(Audio audio, List<ContextItem> priorityOrdered) {
+    public JobId requestTranscription(Audio audio, List<ContextItem> priorityOrdered) {
         var kept = new ArrayList<ContextItem>();
         var dropped = new ArrayList<ContextItem>();
         int used = 0;
@@ -65,7 +65,7 @@ public final class OpenAiSttAdapter implements SttPort {
         return new JobId(id);
     }
 
-    private String render(ContextItem i) { return i.뜻() == null ? i.표기() : i.표기() + "(" + i.뜻() + ")"; }
+    private String render(ContextItem i) { return i.meaning() == null ? i.spelling() : i.spelling() + "(" + i.meaning() + ")"; }
 
     TranscriptionResult normalize(String raw, List<ContextItem> kept, List<ContextItem> dropped) {
         try {
@@ -80,6 +80,6 @@ public final class OpenAiSttAdapter implements SttPort {
         } catch (Exception e) { throw new IllegalStateException("normalize failed", e); }
     }
 
-    @Override public JobStatus 작업상태(JobId id) { return new JobStatus.Done(); }
-    @Override public TranscriptionResult 결과(JobId id) { return done.get(id.value()); }
+    @Override public JobStatus jobStatus(JobId id) { return new JobStatus.Done(); }
+    @Override public TranscriptionResult result(JobId id) { return done.get(id.value()); }
 }

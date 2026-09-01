@@ -1,7 +1,7 @@
 package dl.app;
 
-import dl.domain.ports.단위작업;
-import dl.domain.ports.저장소.명단저장소;
+import dl.domain.ports.UnitOfWork;
+import dl.domain.ports.Stores.RosterStore;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,34 +19,34 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/participants")
 public class ParticipantController {
-    private final 명단저장소 명단들;
-    private final 단위작업 단위;
+    private final RosterStore roster;
+    private final UnitOfWork unit;
 
-    public ParticipantController(명단저장소 명단들, 단위작업 단위) {
-        this.명단들 = 명단들;
-        this.단위 = 단위;
+    public ParticipantController(RosterStore roster, UnitOfWork unit) {
+        this.roster = roster;
+        this.unit = unit;
     }
 
     @GetMapping
-    public List<String> 명단() { return 명단들.명단(); }
+    public List<String> roster() { return roster.roster(); }
 
     @PutMapping
-    public ResponseEntity<?> 저장(@RequestBody List<String> 이름들) {
-        var 정리된것 = new ArrayList<String>();
-        for (var 이름 : 이름들) {
-            var 다듬은것 = 이름 == null ? "" : 이름.trim();
-            if (!다듬은것.isEmpty()) 정리된것.add(다듬은것);
+    public ResponseEntity<?> store(@RequestBody List<String> names) {
+        var cleaned = new ArrayList<String>();
+        for (var name : names) {
+            var trimmed = name == null ? "" : name.trim();
+            if (!trimmed.isEmpty()) cleaned.add(trimmed);
         }
-        var 중복 = 중복찾기(정리된것);
-        if (중복 != null) return ResponseEntity.badRequest().body(Map.of("error", "중복된 이름: " + 중복));
+        var duplicate = findDuplicates(cleaned);
+        if (duplicate != null) return ResponseEntity.badRequest().body(Map.of("error", "중복된 이름: " + duplicate));
 
-        단위.안에서(() -> 명단들.명단저장(정리된것));
-        return ResponseEntity.ok(명단들.명단());
+        unit.within(() -> roster.saveRoster(cleaned));
+        return ResponseEntity.ok(roster.roster());
     }
 
-    private static String 중복찾기(List<String> 이름들) {
-        var 본것 = new LinkedHashSet<String>();
-        for (var 이름 : 이름들) if (!본것.add(이름)) return 이름;
+    private static String findDuplicates(List<String> names) {
+        var seen = new LinkedHashSet<String>();
+        for (var name : names) if (!seen.add(name)) return name;
         return null;
     }
 }

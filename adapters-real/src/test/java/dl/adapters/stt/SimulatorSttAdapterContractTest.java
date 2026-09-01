@@ -4,6 +4,6 @@ import dl.domain.ports.SttPort;
 
 class SimulatorSttAdapterContractTest extends SttContractTest {
     @Override SttPort adapter() {
-        return new SimulatorSttAdapter(실측오염규칙.전량(), 42L);
+        return new SimulatorSttAdapter(MeasuredCorruptionRules.all(), 42L);
     }
 }

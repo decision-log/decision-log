@@ -47,17 +47,17 @@ sourceSets {
     }
 }
 
-def 마이그레이션 = file('src/main/resources/db/migration')
-def 생성위치 = layout.buildDirectory.dir('generated-src/jooq')
+def migrations = file('src/main/resources/db/migration')
+def generated = layout.buildDirectory.dir('generated-src/jooq')
 
 tasks.register('jooqCodegen', JavaExec) {
     group = 'build'
     description = '마이그레이션을 컨테이너에 적용하고 그 스키마에서 타입 안전 코드를 생성한다'
-    inputs.dir(마이그레이션).withPathSensitivity(PathSensitivity.RELATIVE)
-    outputs.dir(생성위치)
+    inputs.dir(migrations).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(generated)
     classpath = sourceSets.codegen.output + configurations.codegenTool
     mainClass = 'Codegen'
-    argumentProviders.add({ [생성위치.get().asFile.absolutePath, 마이그레이션.absolutePath] } as CommandLineArgumentProvider)
+    argumentProviders.add({ [generated.get().asFile.absolutePath, migrations.absolutePath] } as CommandLineArgumentProvider)
     systemProperty 'org.slf4j.simpleLogger.defaultLogLevel', 'warn'
 }
 sourceSets.main.java.srcDir(tasks.named('jooqCodegen'))

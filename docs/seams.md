@@ -46,13 +46,19 @@
 ### 표면
 
 ```
-전사요청(오디오, 컨텍스트항목[])  → 작업ID
+전사요청(오디오, 컨텍스트항목[])  → 작업ID     requestTranscription(Audio, List<ContextItem>) → JobId
 작업상태(작업ID)                  → 대기중 | 처리중(완료청크/전체) | 완료 | 실패
+                                              jobStatus(JobId) → Waiting | Running(doneChunks, totalChunks) | Done | Failed
 결과(작업ID)                      → 회의록 + 반영된컨텍스트 + 잘린컨텍스트 + 원본응답[]
+                                              result(JobId) → TranscriptionResult(transcript, appliedContext, droppedContext, rawResponses)
 
 컨텍스트항목  { 종류: 명단|용어|후보쟁점|이슈, 표기, 뜻? }
+              ContextItem { ContextKind: ROSTER|TERM|OPEN_CANDIDATE|ISSUE, spelling, meaning? }
 발화구간      { 화자라벨?, 시작초, 끝초, 텍스트 }
+              Utterance { speakerLabel?, startSec, endSec, text }
 ```
+
+**왼쪽은 팀이 쓰는 말, 오른쪽은 코드에 서는 이름이다.** 왼쪽을 그대로 식별자로 옮기지 않는다 ([ADR 0006](./adr/0006-english-identifiers-korean-vocabulary.md)).
 
 **`종류`가 필요한 이유** — CLOVA의 `boostings`, Deepgram의 `keyterm`, ElevenLabs의 keyterm은 **단어 목록**이라 이슈 한 줄을 통째로 못 넣는다. 어댑터가 `종류 == 용어|명단`만 뽑아 쓰고 나머지를 버릴 수 있어야 한다. 자유 텍스트형은 다 이어붙인다. ([stt-requirements.md](./stt-requirements.md)의 *컨텍스트 형태* 참조)
 
@@ -146,10 +152,15 @@ LLM에게 타임스탬프를 뱉게 하면 틀린다. 회의록에 구간 번호
 
 ```
 추출(발화구간[], 프롬프트버전) → 추출결과
+                    extract(List<Utterance>, String promptVersion) → ExtractionResult
+                    ExtractionResult { issueCandidates, termCandidates, modelName, promptHash }
+                    IssueCandidateDraft { question, state, answer, evidenceSpans }
 
 [2차 — v0.5에 없음]
 연결제안(추출결과, 기존이슈[]) → 연결후보[]
 ```
+
+⓵ 과 같다 — **왼쪽은 팀이 쓰는 말, 오른쪽은 코드에 서는 이름이다** ([ADR 0006](./adr/0006-english-identifiers-korean-vocabulary.md)).
 
 메타는 위 `추출결과` 안에 있다. **회의록이 여러 개여도 포트는 발화 구간 목록 하나만 받는다** — 합치는 것은 도메인의 일이고, 구간 번호는 합친 것 기준이다.
 

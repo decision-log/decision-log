@@ -15,12 +15,12 @@ public final class ReplaySttAdapter implements SttPort {
     public ReplaySttAdapter(String recordedResponse) { this.recordedResponse = recordedResponse; }
 
     @Override
-    public JobId 전사요청(Audio audio, List<ContextItem> priorityOrdered) {
+    public JobId requestTranscription(Audio audio, List<ContextItem> priorityOrdered) {
         var id = UUID.randomUUID().toString();
         done.put(id, normalizer.normalize(recordedResponse, priorityOrdered, List.of()));
         return new JobId(id);
     }
 
-    @Override public JobStatus 작업상태(JobId id) { return new JobStatus.Done(); }
-    @Override public TranscriptionResult 결과(JobId id) { return done.get(id.value()); }
+    @Override public JobStatus jobStatus(JobId id) { return new JobStatus.Done(); }
+    @Override public TranscriptionResult result(JobId id) { return done.get(id.value()); }
 }

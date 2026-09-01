@@ -28,55 +28,55 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 모델 검사가 그 배선에서 반례를 찾았다(잡실행기.부팅쓸어담기 javadoc).
  */
 @Testcontainers
-class 부팅쓸어담기통합테스트 {
+class BootSweepIntegrationTest {
 
     @Container
     static PostgreSQLContainer<?> pg = new PostgreSQLContainer<>("postgres:17-alpine");
 
-    @TempDir Path 데이터디렉토리;
+    @TempDir Path dataDir;
 
     @Test
     void 재시작하면_중단된_잡이_실패로_바뀐다() {
-        var 중단된잡 = UUID.randomUUID();
-        var 끝난잡 = UUID.randomUUID();
+        var strandedJob = UUID.randomUUID();
+        var finishedJob = UUID.randomUUID();
 
-        try (var 첫기동 = 띄운다()) {
-            var db = 첫기동.getBean(DSLContext.class);
-            잡을심는다(db, 중단된잡, "처리중", 3);
-            잡을심는다(db, 끝난잡, "완료", 5);
+        try (var firstBoot = boot()) {
+            var db = firstBoot.getBean(DSLContext.class);
+            seedJob(db, strandedJob, "처리중", 3);
+            seedJob(db, finishedJob, "완료", 5);
         }   // 강제종료와 같다 — 처리중 행이 그대로 남는다
 
-        try (var 두번째기동 = 띄운다()) {
-            var db = 두번째기동.getBean(DSLContext.class);
+        try (var secondBoot = boot()) {
+            var db = secondBoot.getBean(DSLContext.class);
 
-            var 중단된것 = db.select(JOB.STATE, JOB.FAILURE_REASON)
-                            .from(JOB).where(JOB.ID.eq(중단된잡)).fetchSingle();
-            assertThat(중단된것.get(JOB.STATE)).isEqualTo("실패");
-            assertThat(중단된것.get(JOB.FAILURE_REASON)).isEqualTo("애플리케이션 재시작으로 중단됨");
+            var stranded = db.select(JOB.STATE, JOB.FAILURE_REASON)
+                            .from(JOB).where(JOB.ID.eq(strandedJob)).fetchSingle();
+            assertThat(stranded.get(JOB.STATE)).isEqualTo("실패");
+            assertThat(stranded.get(JOB.FAILURE_REASON)).isEqualTo("애플리케이션 재시작으로 중단됨");
 
             // 완료에 도달한 잡은 다시 뜬다고 뒤집히지 않는다
-            var 끝난것 = db.select(JOB.STATE).from(JOB).where(JOB.ID.eq(끝난잡)).fetchSingle();
-            assertThat(끝난것.get(JOB.STATE)).isEqualTo("완료");
+            var finished = db.select(JOB.STATE).from(JOB).where(JOB.ID.eq(finishedJob)).fetchSingle();
+            assertThat(finished.get(JOB.STATE)).isEqualTo("완료");
         }
     }
 
-    private void 잡을심는다(DSLContext db, UUID 잡, String 상태, int 진행) {
-        var 회의 = UUID.randomUUID();
+    private void seedJob(DSLContext db, UUID job, String state, int progress) {
+        var meeting = UUID.randomUUID();
         db.insertInto(MEETING).columns(MEETING.ID, MEETING.TITLE, MEETING.HELD_ON)
-          .values(회의, 상태 + " 회의", LocalDate.of(2026, 3, 2)).execute();
+          .values(meeting, state + " 회의", LocalDate.of(2026, 3, 2)).execute();
         db.insertInto(JOB)
           .columns(JOB.ID, JOB.MEETING_ID, JOB.STATE, JOB.PROGRESS_DONE, JOB.PROGRESS_TOTAL)
-          .values(잡, 회의, 상태, 진행, 5).execute();
+          .values(job, meeting, state, progress, 5).execute();
     }
 
     /** 프로덕션과 같은 배선으로 띄운다 — 손으로 빈을 만들면 검증하려는 배선이 사라진다. */
-    private ConfigurableApplicationContext 띄운다() {
+    private ConfigurableApplicationContext boot() {
         return new SpringApplicationBuilder(App.class)
                 .properties("server.port=0",
                             "spring.datasource.url=" + pg.getJdbcUrl(),
                             "spring.datasource.username=" + pg.getUsername(),
                             "spring.datasource.password=" + pg.getPassword(),
-                            "dl.data-dir=" + 데이터디렉토리)
+                            "dl.data-dir=" + dataDir)
                 .run();
     }
 }

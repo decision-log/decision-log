@@ -11,18 +11,18 @@ public final class MarkerExtractAdapter implements ExtractPort {
 
     /** 발화 텍스트에 붙은 마커: «이슈:질문» «용어:표기» */
     @Override
-    public 추출결과 추출(List<Utterance> 회의록, String 프롬프트버전) {
-        var 이슈 = new ArrayList<이슈후보초안>();
-        var 용어 = new ArrayList<용어후보>();
-        for (int i = 0; i < 회의록.size(); i++) {
-            var t = 회의록.get(i).text();
-            for (var m : 마커(t, "이슈")) 이슈.add(new 이슈후보초안(m, 상태.쟁점, null, List.of(i)));
-            for (var m : 마커(t, "용어")) 용어.add(new 용어후보(m, null, null));
+    public ExtractionResult extract(List<Utterance> transcript, String promptVersion) {
+        var issues = new ArrayList<IssueCandidateDraft>();
+        var terms = new ArrayList<TermCandidate>();
+        for (int i = 0; i < transcript.size(); i++) {
+            var t = transcript.get(i).text();
+            for (var m : marker(t, "이슈")) issues.add(new IssueCandidateDraft(m, State.쟁점, null, List.of(i)));
+            for (var m : marker(t, "용어")) terms.add(new TermCandidate(m, null, null));
         }
-        return new 추출결과(이슈, 용어, "marker-fake", "v" + 프롬프트버전);
+        return new ExtractionResult(issues, terms, "marker-fake", "v" + promptVersion);
     }
 
-    private static List<String> 마커(String s, String kind) {
+    private static List<String> marker(String s, String kind) {
         var out = new ArrayList<String>();
         var p = java.util.regex.Pattern.compile("«" + kind + ":([^»]+)»");
         var m = p.matcher(s);

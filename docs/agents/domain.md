@@ -22,7 +22,8 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
     │   ├── 0002-ai-cannot-decide-issues.md
     │   ├── 0003-no-external-task-tool.md
     │   ├── 0004-scope-by-substitute.md
-    │   └── 0005-simulate-rounds-not-calls.md
+    │   ├── 0005-simulate-rounds-not-calls.md
+    │   └── 0006-english-identifiers-korean-vocabulary.md
     ├── seams.md
     ├── stt-requirements.md
     ├── mvp-scope.md
@@ -45,9 +46,11 @@ The current build target is **v0.5**, defined in ADR 0004 and the *지금 만드
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+When your output names a domain concept **in prose** (an issue title, a refactor proposal, a hypothesis, a commit message), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
 
 `CONTEXT.md` 은 한국어 용어집이며 각 항목의 `_Avoid_` 목록에 있는 말은 쓰지 않는다.
+
+**코드 식별자는 다르다.** 클래스·메서드·필드·컬럼 이름은 영문이고, 용어집 항목에 대응하는 영문 이름은 [ADR 0006](../adr/0006-english-identifiers-korean-vocabulary.md) 의 대응표가 정본이다. 용어집 어휘를 그대로 식별자로 옮기지 않는다 — 그 음역이 저장소 전체를 한글 식별자로 채운 경로였다. 테스트 **메서드** 이름은 예외로 한국어를 쓴다.
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
