@@ -24,7 +24,7 @@ public final class MeasuredCorruptionRules {
     /** 8회 전부 같은 형태. */
     public static final Rule GIT = new Rule(".git", Mode.STEADY, List.of("점기"));
 
-    /** 6회 전부 같은 형태. {@link #깃} 과 접두사가 겹친다 — 어댑터가 긴 정답부터 적용한다. */
+    /** 6회 전부 같은 형태. {@link #GIT} 과 접두사가 겹친다 — 어댑터가 긴 정답부터 적용한다. */
     public static final Rule GITIGNORE = new Rule(".gitignore", Mode.STEADY, List.of("GD 근원"));
 
     /** 매번 다르게 깨져 같은 말인지도 모른다. 용어 후보의 "반복" 신호에도 안 걸린다. */

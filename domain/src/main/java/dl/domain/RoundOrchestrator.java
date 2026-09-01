@@ -11,7 +11,7 @@ import java.util.*;
  * 한 회차가 도는 순서. 회차 시뮬레이터와 애플리케이션이 **같은 것을** 돈다.
  *
  * 프레임워크를 모른다. 트랜잭션도 모른다 — 아는 것은 "여기부터 여기까지가 한 단위"뿐이고,
- * 그걸 {@link 단위작업} 에 말한다.
+ * 그걸 {@link UnitOfWork} 에 말한다.
  */
 public final class RoundOrchestrator {
 

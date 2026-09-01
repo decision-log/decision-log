@@ -20,7 +20,7 @@ public final class RoundSimulator {
      * ADR 0005 가 그림으로 든 예시 규칙이다 — <b>실측이 아니다.</b>
      * 용어집에 {@code Caddy} 가 올라간 뒤 "응답 캐시"가 "응답 Caddy"로 끌려가는 것,
      * 즉 컨텍스트 주입의 <i>대가</i>를 눈으로 보려고 여기서 만든다.
-     * 실측 목록({@link 실측오염규칙})에는 넣지 않는다.
+     * 실측 목록({@link MeasuredCorruptionRules})에는 넣지 않는다.
      */
     static final Rule CADDY = new Rule("Caddy", Mode.STEADY, List.of("캐디"), List.of("캐시"));
 

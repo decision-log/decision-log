@@ -47,7 +47,7 @@ public interface Stores {
          * 제자리 교체. 이력은 남기지 않는다.
          *
          * 기존표기가 없으면 {@link java.util.NoSuchElementException}.
-         * 새표기가 기존표기와 다른데 이미 있으면 {@link 표기충돌} — 병합은 삭제의 다른 얼굴이라 거부한다.
+         * 새표기가 기존표기와 다른데 이미 있으면 {@link SpellingConflict} — 병합은 삭제의 다른 얼굴이라 거부한다.
          * 기존표기와 새표기가 같으면 뜻만 갈아끼운다. 새뜻은 null 일 수 있다(뜻 비우기).
          */
         void edit(String oldSpelling, String newSpelling, String newMeaning);
