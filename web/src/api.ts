@@ -23,7 +23,7 @@ export type MeetingDetail = Meeting & {
   job: Job | null
 }
 
-/** spelling 충돌(409)은 화면이 따로 안내해야 해서 구분되는 타입으로 던진다. */
+/** 표기 충돌(409)은 화면이 따로 안내해야 해서 구분되는 타입으로 던진다. */
 export class ConflictError extends Error {}
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }

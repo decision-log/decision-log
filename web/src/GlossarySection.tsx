@@ -99,7 +99,7 @@ export function GlossarySection() {
 
       <div className="space-y-2">
         <label htmlFor="glossary-paste" className="text-sm font-medium">
-          한 줄에 하나, 탭이나 콜론으로 spelling와 meaning을 구분
+          한 줄에 하나, 탭이나 콜론으로 표기와 뜻을 구분
         </label>
         <Textarea
           id="glossary-paste"
