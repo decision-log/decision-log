@@ -45,6 +45,8 @@ public final class 회차오케스트레이터 {
         return out;
     }
 
+    public record 전사결과(회의ID 회의, List<Utterance> 회의록) {}
+
     public record 회차결과(회의ID 회의, List<Utterance> 회의록, List<이슈후보> 후보, List<용어후보> 용어후보) {}
 
     /**
@@ -52,18 +54,35 @@ public final class 회차오케스트레이터 {
      *
      * 전사와 추출이 각각 수 분 걸리므로 저장은 두 섬으로 갈린다.
      * 긴 외부 호출을 트랜잭션 안에 두면 커넥션을 그동안 붙잡게 된다.
+     *
+     * <p>두 섬을 밖에서도 따로 부를 수 있게 열어 둔다 — 잡이 그 사이에서 진행을 보고한다.
      */
-    public 회차결과 돈다(Audio audio, String 프롬프트버전) {
+    public 회차결과 돈다(회의ID 회의, Audio audio, String 프롬프트버전) {
+        return 추출한다(전사한다(회의, audio), 프롬프트버전);
+    }
+
+    /**
+     * 오디오가 이 회의의 회의록이 된다.
+     *
+     * <p><b>회의를 만드는 것은 호출자의 일이다.</b> 사람이 회의를 먼저 만들고 오디오를 올리므로
+     * 여기서 또 만들면 회의가 둘이 된다 (#3 합의문 "미룬 충돌").
+     *
+     * <p>회의록이 비면 실패다. 조용히 빈 결과를 받지 않는 것이 부모 이슈 사용자 스토리 9번이다.
+     */
+    public 전사결과 전사한다(회의ID 회의, Audio audio) {
         var ctx = 컨텍스트조립();
         var job = stt.전사요청(audio, ctx);
         var 전사 = stt.결과(job);
+        if (전사.회의록().isEmpty())
+            throw new IllegalStateException("전사 결과가 비었다 — 회의록이 한 줄도 없다");
 
-        var 회의 = 단위.안에서(() -> {
-            var m = 회의들.새회의();
-            회의들.회의록저장(m, 전사.회의록());
-            return m;
-        });
+        단위.안에서(() -> 회의들.회의록저장(회의, 전사.회의록()));
+        return new 전사결과(회의, 전사.회의록());
+    }
 
+    /** 회의록이 후보가 된다. */
+    public 회차결과 추출한다(전사결과 전사, String 프롬프트버전) {
+        var 회의 = 전사.회의();
         var 추출 = extract.추출(전사.회의록(), 프롬프트버전);
 
         var 후보들 = 추출.이슈후보().stream()

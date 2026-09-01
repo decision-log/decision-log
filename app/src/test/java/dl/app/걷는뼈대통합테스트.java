@@ -58,15 +58,24 @@ class 걷는뼈대통합테스트 {
     @Autowired QueryCounter 카운터;
     @Value("${local.server.port}") int 포트;
 
-    static final List<String> 대본 = List.of(
+    /** 가짜 STT 는 오디오가 아니라 대본을 받는다 (ADR 0005) — 그 자리가 Audio 다. */
+    static final String 대본 = String.join("\n", List.of(
             "리버스 프록시는 «용어:Caddy»로 가죠 «이슈:리버스 프록시를 무엇으로 할 것인가»",
             "«용어:툴 콜링» 실패를 «이슈:툴 콜링 실패를 어떻게 처리할 것인가»",
-            "«용어:스크럼»은 매일 아침에 합니다");
+            "«용어:스크럼»은 매일 아침에 합니다"));
+
+    /** 이 테스트가 재는 것은 오염이 아니라 배선이라, 규칙은 한 벌만 둔다. */
     static final List<Rule> 규칙 = List.of(new Rule("Caddy", Mode.일관, List.of("캐디")));
 
     private 회차오케스트레이터 오케(용어집저장소 g) {
-        return new 회차오케스트레이터(new SimulatorSttAdapter(대본, 규칙, 7L),
+        return new 회차오케스트레이터(new SimulatorSttAdapter(규칙, 7L),
                 new MarkerExtractAdapter(), 회의들, 이슈들, g, 단위);
+    }
+
+    /** 회의를 만드는 것은 호출자의 일이다 — 오케스트레이터가 더 이상 안 만든다. */
+    private 회차오케스트레이터.회차결과 한회차돈다(회차오케스트레이터 o) {
+        return o.돈다(회의들.새회의(),
+                new Audio(대본.getBytes(java.nio.charset.StandardCharsets.UTF_8), "m.txt"), "1");
     }
 
     private HttpResponse<String> GET(String 경로) throws Exception {
@@ -89,7 +98,7 @@ class 걷는뼈대통합테스트 {
     @Test
     void 확인은_한_단위다() {
         var o = 오케(용어집);
-        var r = o.돈다(new Audio(new byte[0], "m.mp3"), "1");
+        var r = 한회차돈다(o);
         int 이슈전 = 이슈들.전량().size(), 용어전 = 용어집.전량().size();
 
         var 터지는용어집 = new 용어집저장소() {
@@ -108,7 +117,7 @@ class 걷는뼈대통합테스트 {
     @Test
     void 확인이_후보_수만큼_왕복하지_않는다() {
         var o = 오케(용어집);
-        var r = o.돈다(new Audio(new byte[0], "m.mp3"), "1");
+        var r = 한회차돈다(o);
 
         카운터.초기화();
         o.확인(r.후보().stream().map(이슈후보::id).toList(), r.용어후보());

@@ -28,11 +28,16 @@ const server = setupServer(
   // multipart 로 파일이 실제로 건너가는지는 서버쪽 잡통합테스트가 진짜 HTTP 로 본다.
   http.post('*/api/meetings/:id/audio', () => {
     업로드요청수 += 1
-    // 파일명에 fail 이 들어가면 항상 실패한다 — 서버의 가짜 처리와 같은 규칙
+    // 실패 사유는 서버가 보낸 문장을 그대로 보여준다 — 화면은 사유를 해석하지 않는다
     detail = {
       ...detail,
       audioUploaded: true,
-      job: { state: '실패', progressDone: 2, progressTotal: 5, failureReason: '가짜 처리 실패' },
+      job: {
+        state: '실패',
+        progressDone: 0,
+        progressTotal: 1,
+        failureReason: "시뮬레이터 STT 는 대본(UTF-8 텍스트)을 받는다 — '회의녹음.mp3' 은 텍스트가 아니다",
+      },
     }
     return HttpResponse.json(detail)
   }),
@@ -88,16 +93,16 @@ test('오디오를 올리면 상태가 보이고, 실패하면 다시 돌릴 수
   // 파일을 고르는 것이 곧 처리 시작이다 — 따로 누를 버튼이 없다
   await user.upload(
     screen.getByLabelText('오디오 파일'),
-    new File(['소리'], 'fail.mp3', { type: 'audio/mpeg' }),
+    new File(['소리'], '회의녹음.mp3', { type: 'audio/mpeg' }),
   )
   expect(업로드요청수).toBe(1)
 
   // 업로드 직후 즉시 한 번 더 조회한다 — 폴링 간격을 기다리지 않는다
   expect(await screen.findByText('실패')).toBeInTheDocument()
-  expect(await screen.findByText(/가짜 처리 실패/)).toBeInTheDocument()
+  expect(await screen.findByText(/텍스트가 아니다/)).toBeInTheDocument()
 
   await user.click(screen.getByRole('button', { name: '재시도' }))
 
   expect(await screen.findByText('대기중')).toBeInTheDocument()
-  expect(screen.queryByText(/가짜 처리 실패/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/텍스트가 아니다/)).not.toBeInTheDocument()
 })
