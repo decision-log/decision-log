@@ -152,10 +152,15 @@ LLM에게 타임스탬프를 뱉게 하면 틀린다. 회의록에 구간 번호
 
 ```
 추출(발화구간[], 프롬프트버전) → 추출결과
+                    extract(List<Utterance>, String promptVersion) → ExtractionResult
+                    ExtractionResult { issueCandidates, termCandidates, modelName, promptHash }
+                    IssueCandidateDraft { question, state, answer, evidenceSpans }
 
 [2차 — v0.5에 없음]
 연결제안(추출결과, 기존이슈[]) → 연결후보[]
 ```
+
+⓵ 과 같다 — **왼쪽은 팀이 쓰는 말, 오른쪽은 코드에 서는 이름이다** ([ADR 0006](./adr/0006-english-identifiers-korean-vocabulary.md)).
 
 메타는 위 `추출결과` 안에 있다. **회의록이 여러 개여도 포트는 발화 구간 목록 하나만 받는다** — 합치는 것은 도메인의 일이고, 구간 번호는 합친 것 기준이다.
 

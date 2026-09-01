@@ -23,7 +23,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
     │   ├── 0003-no-external-task-tool.md
     │   ├── 0004-scope-by-substitute.md
     │   ├── 0005-simulate-rounds-not-calls.md
-│   └── 0006-english-identifiers-korean-vocabulary.md
+    │   └── 0006-english-identifiers-korean-vocabulary.md
     ├── seams.md
     ├── stt-requirements.md
     ├── mvp-scope.md
