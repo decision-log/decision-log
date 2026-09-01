@@ -48,7 +48,7 @@ class SimulatorSttAdapterTest {
         assertThat(transcription(simulator(7L), script))
                 .containsExactly("시끄러움은 매일 아침에 합니다");
 
-        assertThat(transcription(simulator(7L), script, Term("스크럼")))
+        assertThat(transcription(simulator(7L), script, term("스크럼")))
                 .containsExactly("스크럼은 매일 아침에 합니다");
     }
 
@@ -65,7 +65,7 @@ class SimulatorSttAdapterTest {
                 .as("컨텍스트에 없으면 아무 일도 안 일어난다")
                 .containsExactly("응답 캐시를 걸어두면 빨라집니다");
 
-        assertThat(transcription(stt, script, Term("Caddy")))
+        assertThat(transcription(stt, script, term("Caddy")))
                 .as("넣은 어휘 쪽으로 끌려간다")
                 .containsExactly("응답 Caddy를 걸어두면 빨라집니다");
     }
@@ -125,7 +125,7 @@ class SimulatorSttAdapterTest {
         return stt.result(id).transcript().stream().map(Utterance::text).toList();
     }
 
-    private static ContextItem Term(String spelling) {
+    private static ContextItem term(String spelling) {
         return new ContextItem(ContextKind.TERM, spelling, null);
     }
 }

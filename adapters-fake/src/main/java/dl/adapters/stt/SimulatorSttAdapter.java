@@ -27,10 +27,10 @@ public final class SimulatorSttAdapter implements SttPort {
     /**
      * 오염 규칙 하나.
      *
-     * @param 정답       회의에서 실제로 나온 말
+     * @param correct      회의에서 실제로 나온 말
      * @param mode       일관은 한 회차 안에서 같은 형태로, 흔들림은 등장마다 다른 형태로 깨진다
-     * @param 오염형      정답이 컨텍스트에 없을 때 깨지는 형태들
-     * @param 끌려오는말  정답이 컨텍스트에 있을 때 정답 쪽으로 끌려가는 엉뚱한 말들
+     * @param corruptions  정답이 컨텍스트에 없을 때 깨지는 형태들
+     * @param pulledWords  정답이 컨텍스트에 있을 때 정답 쪽으로 끌려가는 엉뚱한 말들
      */
     public record Rule(String correct, Mode mode, List<String> corruptions, List<String> pulledWords) {
         public Rule {
@@ -152,7 +152,7 @@ public final class SimulatorSttAdapter implements SttPort {
      */
     private static String pullToward(String line, Rule r) {
         var out = line;
-        for (String pulledWords : r.pulledWords()) out = out.replace(pulledWords, r.correct());
+        for (String pulled : r.pulledWords()) out = out.replace(pulled, r.correct());
         return out;
     }
 }

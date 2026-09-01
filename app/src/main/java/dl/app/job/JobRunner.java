@@ -64,7 +64,7 @@ public final class JobRunner {
             return;
         }
         try {
-            processing.process(meeting, audio, (DONE, total) -> jobs.recordProgress(job, DONE, total));
+            processing.process(meeting, audio, (done, total) -> jobs.recordProgress(job, done, total));
             jobs.markDone(job);
         } catch (Exception e) {
             // 종료(shutdownNow)로 끊긴 것은 처리의 실패가 아니다. "sleep interrupted" 같은 원시 메시지를
