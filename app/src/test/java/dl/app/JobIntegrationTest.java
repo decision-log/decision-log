@@ -1,5 +1,6 @@
 package dl.app;
 
+import dl.script.Scripts;
 import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
@@ -24,8 +25,15 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import static dl.app.jooq.Tables.EXTRACTION;
+import static dl.app.jooq.Tables.ISSUE_CANDIDATE;
+import static dl.app.jooq.Tables.ISSUE_CANDIDATE_EVIDENCE;
 import static dl.app.jooq.Tables.JOB;
 import static dl.app.jooq.Tables.MEETING;
+import static dl.app.jooq.Tables.OPINION;
+import static dl.app.jooq.Tables.TASK;
+import static dl.app.jooq.Tables.TERM_CANDIDATE;
+import static dl.app.jooq.Tables.TERM_CANDIDATE_EVIDENCE;
 import static dl.app.jooq.Tables.TRANSCRIPT;
 import static dl.app.jooq.Tables.UTTERANCE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,9 +106,13 @@ class JobIntegrationTest {
         assertThat(mapper.readTree(upload.body()).get("audioUploaded").asBoolean()).isTrue();
 
         var job = waitForJob(meeting, "완료");
-        assertThat(job.get("progressDone").asInt()).isEqualTo(1);   // 지금은 전사 한 단계뿐이다
-        assertThat(job.get("progressTotal").asInt()).isEqualTo(1);
+        assertThat(job.get("progressDone").asInt()).isEqualTo(2);   // 전사 · 추출 두 단계다
+        assertThat(job.get("progressTotal").asInt()).isEqualTo(2);
         assertThat(job.get("failureReason").isNull()).isTrue();
+
+        // 마커가 없는 대본이라 벌은 비어 있다 — 그래도 벌은 남고 현재 벌 포인터가 채워진다
+        assertThat(db.fetchCount(EXTRACTION, EXTRACTION.MEETING_ID.eq(UUID.fromString(meeting)))).isEqualTo(1);
+        assertThat(currentExtraction(meeting)).isNotNull();
 
         // 회의 하나에 회의록 한 벌 — 스키마는 여러 벌을 받지만 화면은 1:1 로만 쓴다
         var transcript = theOnlyTranscript(meeting);
@@ -149,6 +161,89 @@ class JobIntegrationTest {
         assertThat(transcriptText(secondRound))
                 .as("같은 오디오 · 같은 시드인데 컨텍스트만 달라져 회의록이 바뀐다")
                 .containsExactly("스크럼은 매일 아침에 합니다");
+    }
+
+    /**
+     * 회의록이 후보가 된다 — 대본에 달아둔 정답이 전량 저장된다.
+     *
+     * <p>의견과 할 일은 이번 범위에 화면이 없지만 뽑아서 저장한다. 담을 자리가 없으면
+     * 에러도 안 나고 테스트도 안 걸린다 — 조용한 절단은 "다 넣었다"로 읽힌다.
+     */
+    @Test
+    void 대본을_올리면_추출_전량이_저장된다() throws Exception {
+        var meeting = createMeeting("마커 대본 회의");
+        upload(meeting, "마커대본.txt", Scripts.defaultScript().getBytes(StandardCharsets.UTF_8));
+        waitForJob(meeting, "완료");
+
+        var extraction = currentExtraction(meeting);
+        assertThat(extraction).as("현재 벌 포인터가 채워졌다").isNotNull();
+
+        assertThat(db.fetchCount(ISSUE_CANDIDATE, ISSUE_CANDIDATE.EXTRACTION_ID.eq(extraction))).isEqualTo(4);
+        assertThat(db.fetchCount(OPINION, OPINION.EXTRACTION_ID.eq(extraction))).isEqualTo(4);
+        assertThat(db.fetchCount(TASK, TASK.EXTRACTION_ID.eq(extraction))).isEqualTo(2);
+
+        // 대본에는 용어 마커가 다섯 줄이고 그중 둘이 "툴 콜링" 인데, 용어집이 비어 있어 흔들림이
+        // 그 둘을 다른 형태로 깨뜨린다. 표기를 그대로 비교하므로 안 합쳐지고 다섯 건이 된다 —
+        // 정규화를 안 하는 이유가 정확히 이것이다(합쳐 놓으면 흔들림이 안 보인다).
+        assertThat(db.fetchCount(TERM_CANDIDATE, TERM_CANDIDATE.EXTRACTION_ID.eq(extraction))).isEqualTo(5);
+
+        assertThat(db.fetchCount(ISSUE_CANDIDATE_EVIDENCE,
+                ISSUE_CANDIDATE_EVIDENCE.CANDIDATE_ID.in(
+                        db.select(ISSUE_CANDIDATE.ID).from(ISSUE_CANDIDATE)
+                          .where(ISSUE_CANDIDATE.EXTRACTION_ID.eq(extraction)))))
+                .as("여러 줄에 걸친 이슈 둘이 근거를 둘씩 갖는다").isEqualTo(6);
+        assertThat(db.fetchCount(TERM_CANDIDATE_EVIDENCE,
+                TERM_CANDIDATE_EVIDENCE.TERM_CANDIDATE_ID.in(
+                        db.select(TERM_CANDIDATE.ID).from(TERM_CANDIDATE)
+                          .where(TERM_CANDIDATE.EXTRACTION_ID.eq(extraction)))))
+                .isEqualTo(5);
+
+        // 의견·할 일의 근거는 단수라 not null 하나로 강제된다 — 인라인 두 컬럼이 그 자리다
+        assertThat(db.select(OPINION.EVIDENCE_TRANSCRIPT, OPINION.EVIDENCE_SEQ).from(OPINION)
+                     .where(OPINION.EXTRACTION_ID.eq(extraction))
+                     .fetch(r -> r.get(OPINION.EVIDENCE_TRANSCRIPT)))
+                .hasSize(4).doesNotContainNull();
+
+        // 원시 참조는 DB 에 안 남는다 — 담을 컬럼 자체가 없고, 남은 참조는 전부 풀린 후보 ID 다
+        var columns = new java.util.ArrayList<String>();
+        for (var table : java.util.List.<org.jooq.Table<?>>of(ISSUE_CANDIDATE, OPINION, TASK, TERM_CANDIDATE))
+            for (var field : table.fields()) columns.add(field.getName());
+        assertThat(columns).doesNotContain("local_key", "issue_ref", "span", "spans");
+
+        var refs = db.select(OPINION.ISSUE_CANDIDATE_ID).from(OPINION)
+                     .where(OPINION.EXTRACTION_ID.eq(extraction)).and(OPINION.ISSUE_CANDIDATE_ID.isNotNull())
+                     .fetch(r -> r.get(OPINION.ISSUE_CANDIDATE_ID));
+        assertThat(refs).as("무소속 하나를 빼면 셋이 후보를 가리킨다").hasSize(3);
+        assertThat(refs).allSatisfy(ref ->
+                assertThat(db.fetchExists(ISSUE_CANDIDATE, ISSUE_CANDIDATE.ID.eq(ref))).isTrue());
+    }
+
+    /**
+     * 재시도는 실패한 지점부터 이어 간다 — 전사는 이미 됐으므로 건너뛴다.
+     *
+     * <p>안 건너뛰면 회의록이 덧붙고 추출이 합쳐서 한 번 도니 이슈가 정확히 두 배로 뽑히는데,
+     * <b>에러가 안 난다.</b> "재시도할 때 회의록을 지운다" 는 못 한다 — 이전 벌의 근거가
+     * {@code utterance(transcript_id, seq)} 로 FK 를 걸고 있어 DB 가 막는다.
+     */
+    @Test
+    void 재시도해도_회의록이_늘지_않는다() throws Exception {
+        var meeting = createMeeting("추출이 실패할 회의");
+        var script = "이거 하나만 봅시다 | 답@ghost: 아무거나";
+        upload(meeting, "깨진대본.txt", script.getBytes(StandardCharsets.UTF_8));
+
+        var failure = waitForJob(meeting, "실패");
+        assertThat(failure.get("failureReason").asText())
+                .as("대본 버그는 시끄럽게 — 사유에 그 키가 보인다").contains("ghost");
+
+        var transcript = theOnlyTranscript(meeting);            // 전사는 성공했다
+        int utterances = db.fetchCount(UTTERANCE, UTTERANCE.TRANSCRIPT_ID.eq(transcript));
+        assertThat(utterances).isEqualTo(1);
+
+        assertThat(send("POST", "/api/meetings/" + meeting + "/retry", null).statusCode()).isEqualTo(200);
+        assertThat(waitForJob(meeting, "실패").get("failureReason").asText()).contains("ghost");
+
+        assertThat(theOnlyTranscript(meeting)).as("회의록이 덧붙지 않았다").isEqualTo(transcript);
+        assertThat(db.fetchCount(UTTERANCE, UTTERANCE.TRANSCRIPT_ID.eq(transcript))).isEqualTo(utterances);
     }
 
     @Test
@@ -211,6 +306,12 @@ class JobIntegrationTest {
         return db.select(UTTERANCE.TEXT).from(UTTERANCE)
                  .where(UTTERANCE.TRANSCRIPT_ID.eq(theOnlyTranscript(meeting)))
                  .orderBy(UTTERANCE.SEQ).fetch(r -> r.get(UTTERANCE.TEXT));
+    }
+
+    private UUID currentExtraction(String meeting) {
+        return db.select(MEETING.CURRENT_EXTRACTION_ID).from(MEETING)
+                 .where(MEETING.ID.eq(UUID.fromString(meeting)))
+                 .fetchOne(MEETING.CURRENT_EXTRACTION_ID);
     }
 
     /** 회의 하나에 회의록 한 벌이 있다는 것까지 확인하고 그 id 를 준다. */
