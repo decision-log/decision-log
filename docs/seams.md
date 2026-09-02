@@ -84,13 +84,17 @@
 
 ```
 추출결과 {
-  메타        { 모델명, 프롬프트버전, 프롬프트해시, 토큰수? { 입력, 출력, 캐시적중 } }
+  메타        Meta { 모델명, 프롬프트버전, 프롬프트해시, 토큰수? { 입력, 출력, 캐시적중 } }
   이슈후보[]  { 로컬키, 질문, 상태(쟁점|결정), 답?, 미결정사유?, 근거구간[] }
   의견[]      { 이슈후보참조?, 화자라벨?, 내용, 근거구간 }
   할일[]      { 이슈후보참조?, 내용, 담당자표기?, 근거구간 }
   용어후보[]  { 표기, 뜻?, 근거구간[] }
 }
 ```
+
+**메타는 결과와 분리된 레코드다.** 한 회의에 여러 벌을 나란히 놓고 판정하는 것이 이 넷의 용도라, 벌 하나를 통째로 집을 수 있어야 한다.
+
+**의견·할 일의 근거는 단수다.** `근거구간[]` 을 갖는 것은 이슈후보와 용어후보뿐이다 — 단수면 *"근거 비지 않음"* 이 not-null 하나로 강제되고, 저장에서도 테이블 대신 컬럼 둘이면 된다. 의견이 실제로 여러 발화에 걸치면 그때 테이블을 만든다.
 
 *프롬프트·모델 교체가 스키마를 건드리지 않아야 한다*([mvp-scope.md](./mvp-scope.md))를 지키려면 스키마가 도메인 것이어야 한다. 반대로 하면 프롬프트를 고칠 때마다 마이그레이션이 붙는다.
 
@@ -152,9 +156,24 @@ LLM에게 타임스탬프를 뱉게 하면 틀린다. 회의록에 구간 번호
 
 ```
 추출(발화구간[], 프롬프트버전) → 추출결과
-                    extract(List<Utterance>, String promptVersion) → ExtractionResult
-                    ExtractionResult { issueCandidates, termCandidates, modelName, promptHash }
-                    IssueCandidateDraft { question, state, answer, evidenceSpans }
+              extract(List<Utterance>, String promptVersion) → ExtractionResult
+
+추출결과   { 메타, 이슈후보[], 의견[], 할일[], 용어후보[] }
+           ExtractionResult { Meta, List<ExtractedCandidate>, List<ExtractedOpinion>,
+                              List<ExtractedTask>, List<ExtractedTerm> }
+메타       { 모델명, 프롬프트버전, 프롬프트해시, 토큰수? }
+           Meta { modelName, promptVersion, promptHash, TokenUsage? }
+토큰수     { 입력, 출력, 캐시적중 }         TokenUsage { input, output, cacheHit }
+로컬키     { 값 }                         LocalKey { value }
+
+이슈후보   { 로컬키, 내용, 근거구간[] }
+           ExtractedCandidate { LocalKey key, IssueCandidate.Content content, List<Integer> spans }
+의견       { 이슈후보참조?, 내용, 근거구간 }
+           ExtractedOpinion { LocalKey issueRef?, Opinion.Content content, int span }
+할일       { 이슈후보참조?, 내용, 근거구간 }
+           ExtractedTask { LocalKey issueRef?, Task.Content content, int span }
+용어후보   { 내용, 근거구간[] }
+           ExtractedTerm { TermCandidate.Content content, List<Integer> spans }
 
 [2차 — v0.5에 없음]
 연결제안(추출결과, 기존이슈[]) → 연결후보[]
@@ -162,7 +181,11 @@ LLM에게 타임스탬프를 뱉게 하면 틀린다. 회의록에 구간 번호
 
 ⓵ 과 같다 — **왼쪽은 팀이 쓰는 말, 오른쪽은 코드에 서는 이름이다** ([ADR 0006](./adr/0006-english-identifiers-korean-vocabulary.md)).
 
-메타는 위 `추출결과` 안에 있다. **회의록이 여러 개여도 포트는 발화 구간 목록 하나만 받는다** — 합치는 것은 도메인의 일이고, 구간 번호는 합친 것 기준이다.
+**`…내용` 은 저장 쪽 레코드와 같은 것이다.** 필드가 두 군데면 한 군데만 자란다. 층마다 타입이 다른 것 둘 — 참조(포트는 로컬키, 저장은 후보ID)와 구간(포트는 전역 번호, 저장은 `(회의록, 순번)`) — 만 내용 바깥에 있다.
+
+**`Extracted` 접두어를 붙이는 이유** — 회차오케스트레이터가 두 층의 레코드를 한 파일에서 쓴다. 포트 쪽을 `Opinion` 으로 짧게 두면 한 줄에 `Opinion` 이 두 뜻으로 나온다. 이름이 층을 말해 주는 쪽을 고른다.
+
+**회의록이 여러 개여도 포트는 발화 구간 목록 하나만 받는다** — 합치는 것은 도메인의 일이고, 구간 번호는 합친 것 기준이다.
 
 추출기는 오디오도 공급자도 모르고, 도메인의 이슈·용어집·상태도 모른다. 아는 건 "발화 구간 목록이 들어오면 구조를 뱉는다"뿐이다.
 

@@ -71,7 +71,13 @@ record TranscriptionResult(List<Utterance> 회의록, List<ContextItem> 반영�
 | 표기 | `spelling` |
 | 뜻 | `meaning` |
 | 명단 | `roster` |
-| 근거 | `evidence` (`evidenceSpans`) |
+| 근거 | `Evidence` (표: `…_evidence`) |
+| 의견 | `Opinion` |
+| 할 일 | `Task` |
+| 추출 | `Extraction` (표: `extraction`) |
+| 로컬키 | `LocalKey` |
+
+**`할 일` 을 `Task` 로 옮긴다.** `CONTEXT.md` 의 `_Avoid_: 태스크, 액션 아이템, 투두` 가 셋 다 영어 음역인데, 이 ADR 이 *"이름은 영문, 말은 한국어"* 로 두 축을 이미 갈랐다. 금지된 것은 한국어로 그렇게 부르는 것이고, `ActionItem` · `Todo` 는 오히려 그 음역과 한 글자씩 붙어 있다.
 
 **뜻을 `definition` 이 아니라 `meaning` 으로 옮긴다.** `CONTEXT.md` 가 *"뜻은 회의록에서 인용하지 사람이 작문하지 않는다"* 고 못박았는데 `definition` 은 작문된 것을 가리킨다.
 
