@@ -19,54 +19,116 @@ public final class InMemory {
     public interface Revertible { Object snapshot(); void restore(Object s); }
 
     public static final class Meetings implements MeetingStore, Revertible {
-        final Map<String, List<Utterance>> transcripts = new LinkedHashMap<>();
+        final Map<String, List<Transcript>> transcripts = new LinkedHashMap<>();
 
         public MeetingId newMeeting() {
             var id = new MeetingId(UUID.randomUUID().toString());
             transcripts.put(id.value(), List.of());
             return id;
         }
-        /** 덧붙인다 — 회의 하나가 회의록 여러 개를 갖는다. 덩이 경계는 읽는 쪽이 없어 안 남긴다. */
-        public void saveTranscript(MeetingId m, List<Utterance> us) {
-            var merged = new ArrayList<>(transcripts.getOrDefault(m.value(), List.of()));
-            merged.addAll(us);
-            transcripts.put(m.value(), List.copyOf(merged));
+
+        /** 덧붙인다 — 회의 하나가 회의록 여러 개를 갖는다. 덩이마다 자기 ID 를 받는다. */
+        public TranscriptId saveTranscript(MeetingId m, List<Utterance> us) {
+            var chunks = new ArrayList<>(transcripts.getOrDefault(m.value(), List.of()));
+            var id = new TranscriptId(UUID.randomUUID().toString());
+            chunks.add(new Transcript(id, us));
+            transcripts.put(m.value(), List.copyOf(chunks));
+            return id;
+        }
+
+        /** 넣은 순서가 곧 덩이 순서다. */
+        public List<Transcript> fullTranscript(MeetingId m) {
+            return transcripts.getOrDefault(m.value(), List.of());
         }
 
         public Object snapshot() { return new LinkedHashMap<>(transcripts); }
         @SuppressWarnings("unchecked")
-        public void restore(Object s) { transcripts.clear(); transcripts.putAll((Map<String, List<Utterance>>) s); }
+        public void restore(Object s) { transcripts.clear(); transcripts.putAll((Map<String, List<Transcript>>) s); }
+    }
+
+    /**
+     * 벌이 쌓이고 회의는 <b>현재 벌 하나</b>를 가리킨다 — 재처리가 이전 벌을 지우지 않는다.
+     * 미확인 후보를 현재 벌에서만 주는 것이 벌 셋 병존 시 후보가 3배로 뜨는 것을 막는 자리다.
+     */
+    public static final class Extractions implements ExtractionStore, Revertible {
+        final Map<String, Extraction> extractions = new LinkedHashMap<>();
+        final Map<String, String> currentExtraction = new LinkedHashMap<>();   // 회의 → 현재 벌
+        final Map<String, String> promotedIssueId = new LinkedHashMap<>();     // 후보 → 올라간 이슈
+
+        public void save(Extraction extraction) {
+            extractions.put(extraction.id().value(), extraction);
+            currentExtraction.put(extraction.meeting().value(), extraction.id().value());
+        }
+
+        public List<IssueCandidate> unconfirmedCandidates(MeetingId meeting) {
+            return current(meeting)
+                    .map(e -> e.issueCandidates().stream().filter(c -> !isPromoted(c.id())).toList())
+                    .orElse(List.of());
+        }
+
+        public List<TermCandidate> termCandidates(MeetingId meeting) {
+            return current(meeting).map(Extraction::termCandidates).orElse(List.of());
+        }
+
+        private Optional<Extraction> current(MeetingId meeting) {
+            return Optional.ofNullable(currentExtraction.get(meeting.value())).map(extractions::get);
+        }
+
+        /** 후보를 이슈로 <b>만드는</b> 것은 이슈저장소의 일이라 여기선 찾아 주고 표시만 한다. */
+        Optional<IssueCandidate> candidate(CandidateId id) {
+            return extractions.values().stream()
+                    .flatMap(e -> e.issueCandidates().stream())
+                    .filter(c -> c.id().equals(id))
+                    .findFirst();
+        }
+
+        boolean isPromoted(CandidateId id) { return promotedIssueId.containsKey(id.value()); }
+
+        void markPromoted(CandidateId candidate, IssueId issue) {
+            promotedIssueId.put(candidate.value(), issue.value());
+        }
+
+        public Object snapshot() {
+            return List.of(new LinkedHashMap<>(extractions), new LinkedHashMap<>(currentExtraction),
+                    new LinkedHashMap<>(promotedIssueId));
+        }
+
+        @SuppressWarnings("unchecked")
+        public void restore(Object s) {
+            var l = (List<Map<String, ?>>) s;
+            extractions.clear(); extractions.putAll((Map<String, Extraction>) l.get(0));
+            currentExtraction.clear(); currentExtraction.putAll((Map<String, String>) l.get(1));
+            promotedIssueId.clear(); promotedIssueId.putAll((Map<String, String>) l.get(2));
+        }
     }
 
     public static final class Issues implements IssueStore, Revertible {
-        final Map<String, IssueCandidate> candidate = new LinkedHashMap<>();
+        private final Extractions extractions;
         final Map<String, Issue> issues = new LinkedHashMap<>();
 
-        public void saveCandidates(List<IssueCandidate> candidates) { for (var c : candidates) candidate.put(c.id().value(), c); }
+        /** 후보가 사는 곳이 추출저장소라 승격은 둘을 함께 본다. */
+        public Issues(Extractions extractions) { this.extractions = extractions; }
 
-        public List<IssueCandidate> unconfirmedCandidates(MeetingId m) {
-            return candidate.values().stream()
-                    .filter(c -> c.meeting().equals(m) && !issues.containsKey(c.id().value()))
-                    .toList();
-        }
-
-        public void promote(List<IssueId> ids) {
+        /** 후보는 <b>새 이슈 ID</b> 를 받는다 — 타입만이 아니라 값까지 가른다. */
+        public void promote(List<CandidateId> ids) {
             for (var id : ids) {
-                var c = candidate.get(id.value());
-                if (c != null) issues.putIfAbsent(id.value(), new Issue(id, c.question(), c.state(), c.answer()));
+                if (extractions.isPromoted(id)) continue;
+                extractions.candidate(id).ifPresent(c -> {
+                    var issueId = new IssueId(UUID.randomUUID().toString());
+                    var content = c.content();
+                    issues.put(issueId.value(), new Issue(issueId, content.question(),
+                            State.valueOf(content.state().name()), content.answer()));
+                    extractions.markPromoted(id, issueId);
+                });
             }
         }
 
         public List<Issue> all() { return List.copyOf(issues.values()); }
         public Optional<Issue> find(IssueId id) { return Optional.ofNullable(issues.get(id.value())); }
 
-        public Object snapshot() { return List.of(new LinkedHashMap<>(candidate), new LinkedHashMap<>(issues)); }
+        public Object snapshot() { return new LinkedHashMap<>(issues); }
         @SuppressWarnings("unchecked")
-        public void restore(Object s) {
-            var l = (List<Map<String, ?>>) s;
-            candidate.clear(); candidate.putAll((Map<String, IssueCandidate>) l.get(0));
-            issues.clear(); issues.putAll((Map<String, Issue>) l.get(1));
-        }
+        public void restore(Object s) { issues.clear(); issues.putAll((Map<String, Issue>) s); }
     }
 
     public static final class Glossary implements GlossaryStore, Revertible {
