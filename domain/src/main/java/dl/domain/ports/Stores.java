@@ -23,16 +23,49 @@ public interface Stores {
          * 회의록 한 벌을 <b>덧붙인다.</b> 회의 하나가 회의록 여러 개를 갖는다 (seams.md ⓷) —
          * 대기가 길면 사람이 논의를 두 덩이로 끊기 때문이고, 합칠 때는 넣은 순서다.
          * v0.5 화면은 1:1 로만 쓴다.
+         *
+         * <p>만든 회의록의 ID 를 돌려준다 — 근거가 그 ID 로 회의록의 한 지점을 가리킨다.
          */
-        void saveTranscript(MeetingId meeting, List<SttPort.Utterance> transcript);
+        TranscriptId saveTranscript(MeetingId meeting, List<SttPort.Utterance> transcript);
+
+        /**
+         * 회의록 전량을 덩이 순서대로. 추출은 이걸 이어붙여 <b>한 번</b> 돈다 —
+         * 한 이슈가 전반·후반에 걸칠 수 있어 덩이별로 돌면 경계에서 갈라진다.
+         *
+         * <p>저장된 것이 정본이다. 왕복 한 번이 늘지만 6명 규모에서 잴 수 없고,
+         * 잡이 추출만 다시 돌 때도 같은 길이다.
+         */
+        List<Transcript> fullTranscript(MeetingId meeting);
+    }
+
+    /**
+     * 벌 하나가 한 단위다.
+     *
+     * <p>이슈저장소와 갈린 이유는 이슈가 추적 대상이고 후보·의견·할 일·용어후보는 넷 다
+     * 아니기 때문이다 — {@code CONTEXT.md} 가 만든 그 구분이 포트 경계와 그대로 맞는다.
+     */
+    interface ExtractionStore {
+        /** 벌 하나를 통째로. 회의의 현재 벌 포인터도 여기서 옮긴다. */
+        void save(Extraction extraction);
+
+        /**
+         * <b>현재 벌의</b> 미확인 후보만. 벌이 셋 병존할 때 전량을 주면 같은 회의록에서 뽑은
+         * 후보가 3배로 뜨고 컨텍스트 조립에도 3배로 들어간다 — 조용히 깨지는 자리다.
+         */
+        List<IssueCandidate> unconfirmedCandidates(MeetingId meeting);
+
+        /** 현재 벌의 용어 후보. */
+        List<TermCandidate> termCandidates(MeetingId meeting);
     }
 
     interface IssueStore {
-        void saveCandidates(List<IssueCandidate> candidates);
-        List<IssueCandidate> unconfirmedCandidates(MeetingId meeting);
-
-        /** 후보를 이슈로 올린다. 이미 올라간 것은 무시한다. */
-        void promote(List<IssueId> ids);
+        /**
+         * 후보를 이슈로 올린다. 이미 올라간 것은 무시한다.
+         *
+         * <p><b>후보는 새 이슈 ID 를 받는다</b> — 타입만 가르지 않고 값까지 가른다.
+         * 문자열로 왕복하는 경계에서 둘을 바꿔 넣으면 조회가 빈다.
+         */
+        void promote(List<CandidateId> ids);
 
         List<Issue> all();
         Optional<Issue> find(IssueId id);

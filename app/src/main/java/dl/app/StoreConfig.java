@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Configuration;
 public class StoreConfig {
     @Bean MeetingStore meetingStore(DSLContext db) { return new JooqStores.Meetings(db); }
     @Bean IssueStore issueStore(DSLContext db) { return new JooqStores.Issues(db); }
+    @Bean ExtractionStore extractionStore(DSLContext db) { return new JooqStores.Extractions(db); }
     @Bean GlossaryStore glossaryStore(DSLContext db) { return new JooqStores.Glossary(db); }
     @Bean RosterStore rosterStore(DSLContext db) { return new JooqStores.Roster(db); }
     @Bean UnitOfWork unitOfWork(DSLContext db) { return new JooqUnitOfWork(db); }
@@ -44,18 +45,22 @@ public class StoreConfig {
     }
 
     /**
-     * 마커 대본 추출기. <b>프로덕션 경로에서 아직 불리지 않는다</b> —
-     * 오케스트레이터 생성자가 요구해서 꽂아 둔 것이고, 추출 경계는 #5 의 산출물이다.
+     * 마커 대본 추출기. <b>스위치 없는 것</b>이 꽂힌다 — 실패 모드는 회차 시뮬레이터와 테스트가
+     * 생성자로만 켠다. 진짜 어댑터와 재생 어댑터는 #8 이 이 자리에 꽂는다.
      */
     @Bean ExtractPort extractPort() { return new MarkerExtractAdapter(); }
 
     @Bean RoundOrchestrator roundOrchestrator(SttPort stt, ExtractPort extract, MeetingStore meetings,
-                                              IssueStore issues, GlossaryStore glossary, UnitOfWork unit) {
-        return new RoundOrchestrator(stt, extract, meetings, issues, glossary, unit);
+                                              ExtractionStore extractions, IssueStore issues,
+                                              GlossaryStore glossary, UnitOfWork unit) {
+        return new RoundOrchestrator(stt, extract, meetings, extractions, issues, glossary, unit);
     }
 
-    /** 잡이 STT 경계를 넘는 자리. #3 이 세워 둔 가짜는 여기서 사라졌다. */
-    @Bean Processing processing(RoundOrchestrator orchestrator) { return new RoundProcessing(orchestrator); }
+    /** 잡이 STT · 추출 경계를 넘는 자리. #3 이 세워 둔 가짜는 여기서 사라졌다. */
+    @Bean Processing processing(RoundOrchestrator orchestrator,
+                                @Value("${dl.extract.prompt-version}") String promptVersion) {
+        return new RoundProcessing(orchestrator, promptVersion);
+    }
 
     @Bean JobRunner jobRunner(JooqJobs jobs, Processing processing, @Value("${dl.job.workers}") int workers) {
         return new JobRunner(jobs, processing, workers);
