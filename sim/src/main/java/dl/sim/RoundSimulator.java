@@ -1,6 +1,7 @@
 package dl.sim;
 
 import dl.adapters.extract.MarkerExtractAdapter;
+import dl.adapters.extract.MarkerExtractAdapter.FailureMode;
 import dl.adapters.store.InMemory;
 import dl.adapters.stt.SimulatorSttAdapter;
 import dl.adapters.stt.SimulatorSttAdapter.Mode;
@@ -9,6 +10,7 @@ import dl.adapters.stt.MeasuredCorruptionRules;
 import dl.domain.RoundOrchestrator;
 import dl.domain.model.Model.*;
 import dl.domain.ports.SttPort.Audio;
+import dl.script.Scripts;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -24,12 +26,31 @@ public final class RoundSimulator {
      */
     static final Rule CADDY = new Rule("Caddy", Mode.STEADY, List.of("캐디"), List.of("캐시"));
 
+    /**
+     * 인자로 켜는 실패 모드. 이름은 부모 이슈가 쓰는 말이고 값은 어댑터의 스위치다.
+     *
+     * <p>스위치를 만들어 놓고 켤 길이 없으면 <i>"작문오염 모드로 3회차를 돌리면 컨텍스트가
+     * 얼마나 나빠지나를 몇 초에 묻는다"</i> 가 반쪽이 된다.
+     */
+    private static final Map<String, FailureMode> SWITCHES = new LinkedHashMap<>();
+    static {
+        SWITCHES.put("과잉분할", FailureMode.OVERSPLIT);
+        SWITCHES.put("작문오염", FailureMode.FABRICATE);
+        SWITCHES.put("누락", FailureMode.OMIT);
+        SWITCHES.put("담당자없음", FailureMode.NO_ASSIGNEE);
+    }
+
     public static void main(String[] args) {
-        var script = String.join("\n", List.of(
-                "리버스 프록시는 «용어:Caddy»로 가죠, «이슈:리버스 프록시를 무엇으로 할 것인가»",
-                "응답 캐시를 걸어두면 빨라집니다",
-                "«용어:툴 콜링»을 어떻게 처리할지 «이슈:툴 콜링 실패를 어떻게 처리할 것인가»",
-                "«용어:스크럼»은 매일 아침에 합니다"));
+        var failureModes = EnumSet.noneOf(FailureMode.class);
+        for (String arg : args) {
+            var mode = SWITCHES.get(arg);
+            if (mode == null) {
+                System.out.println("모르는 스위치입니다: " + arg);
+                System.out.println("사용법: RoundSimulator [" + String.join(" | ", SWITCHES.keySet()) + "] …");
+                return;
+            }
+            failureModes.add(mode);
+        }
 
         var rules = new ArrayList<>(MeasuredCorruptionRules.all());
         rules.add(CADDY);
@@ -39,29 +60,33 @@ public final class RoundSimulator {
         for (Rule r : rules) for (String broken : r.corruptions()) humanCorrections.put(broken, r.correct());
 
         var meetings = new InMemory.Meetings();
-        var issues = new InMemory.Issues();
+        var extractions = new InMemory.Extractions();
+        var issues = new InMemory.Issues(extractions);
         var glossary = new InMemory.Glossary();
 
         long t0 = System.nanoTime();
         for (int round = 1; round <= 3; round++) {
             var stt = new SimulatorSttAdapter(rules, 7L);
-            var o = new RoundOrchestrator(stt, new MarkerExtractAdapter(), meetings, issues, glossary,
-                    new InMemory.Unit(meetings, issues, glossary));
+            var o = new RoundOrchestrator(stt, new MarkerExtractAdapter(failureModes), meetings, extractions,
+                    issues, glossary, new InMemory.Unit(meetings, issues, glossary, extractions));
 
             // 회의를 만드는 것은 호출자의 일이다 — 애플리케이션에서는 사람이 먼저 만든다
-            var r = o.run(meetings.newMeeting(), asScript(script), "1");
+            var r = o.run(meetings.newMeeting(), asScript(Scripts.defaultScript()), "1");
 
             System.out.println("── " + round + "회차  (용어집 " + glossary.all().size()
                     + "건 → 컨텍스트 " + o.assembleContext().size() + "항목)");
             r.transcript().forEach(u -> System.out.println("     " + u.text()));
-            System.out.println("   이슈후보: " + r.candidates().stream().map(IssueCandidate::question).toList());
-            System.out.println("   용어후보: " + r.termCandidates().stream().map(TermCandidate::spelling).toList());
+            System.out.println("   이슈후보: " + r.extraction().issueCandidates().stream()
+                    .map(c -> c.content().question()).toList());
+            System.out.println("   용어후보: " + r.extraction().termCandidates().stream()
+                    .map(t -> t.content().spelling()).toList());
 
-            // 확인 — 후보 전량 승격, 용어는 표기를 고쳐서 승격
-            var correctedTerms = r.termCandidates().stream()
-                    .map(t -> new TermCandidate(humanCorrections.getOrDefault(t.spelling(), t.spelling()), t.meaning(), t.meeting()))
+            // 확인 — 후보 전량 승격, 용어는 표기를 고쳐서 승격 (교정은 호출자의 일이다)
+            var correctedTerms = r.extraction().termCandidates().stream()
+                    .map(t -> new Term(humanCorrections.getOrDefault(t.content().spelling(), t.content().spelling()),
+                            t.content().meaning()))
                     .toList();
-            o.confirm(r.candidates().stream().map(IssueCandidate::id).toList(), correctedTerms);
+            o.confirm(r.extraction().issueCandidates().stream().map(IssueCandidate::id).toList(), correctedTerms);
             System.out.println("   확인 후 용어집: " + glossary.all().stream().map(Term::spelling).toList());
             System.out.println();
         }
