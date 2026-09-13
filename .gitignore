@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 업로드된 오디오와 회의록
+/data/
+
+.env
+.idea/
+.vscode/
+.DS_Store
